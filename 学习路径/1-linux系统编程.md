@@ -105,6 +105,7 @@ SEEK_END 从文件末尾(即:追加)
 客户端可以输入 /history 查看聊天记录
 
 ### 代码:
+```c++
 #include <bits/stdc++.h>
 #include <sys/socket.h>
 #include <fcntl.h>
