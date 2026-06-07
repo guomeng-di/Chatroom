@@ -134,13 +134,13 @@ void readHistory(int client_fd){
     int fd=open("chat.log",O_RDONLY);
     if(fd<0){
         string s="没有历史消息哦!\n";
-        write(client_fd,s.c_str(),s.size());
+        send(client_fd,s.c_str(),s.size());
         return ; 
     }
     char buf[1024*4];
     int n;
     while((n=read(fd,buf,sizeof(buf)))>0){
-        write(client_fd,buf,n);
+        send(client_fd,buf,n);
     }
     close(fd);
 }
@@ -188,7 +188,7 @@ int main(){
                 readHistory(client_fd);
             }else{
                 writeLog(s);
-                write(client_fd,s.c_str(),s.size());
+                send(client_fd,s.c_str(),s.size());
             }
         }
         close(client_fd);
