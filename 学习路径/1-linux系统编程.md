@@ -134,13 +134,13 @@ void readHistory(int client_fd){
     int fd=open("chat.log",O_RDONLY);
     if(fd<0){
         string s="没有历史消息哦!\n";
-        send(client_fd,s.c_str(),s.size());
+        send(client_fd,s.c_str(),s.size(),0);
         return ; 
     }
     char buf[1024*4];
     int n;
     while((n=read(fd,buf,sizeof(buf)))>0){
-        send(client_fd,buf,n);
+        send(client_fd,buf,n,0);
     }
     close(fd);
 }
@@ -188,7 +188,7 @@ int main(){
                 readHistory(client_fd);
             }else{
                 writeLog(s);
-                send(client_fd,s.c_str(),s.size());
+                send(client_fd,s.c_str(),s.size(),0);
             }
         }
         close(client_fd);
@@ -207,3 +207,5 @@ int client_fd = accept(server_fd, (sockaddr*)&client_addr, &client_len);
 //创建好客户端的地址,accept时客户端会自动传给服务器
 ```
 常用accept(fd,NULL,NLL)是因为服务器不关心客户端的ip地址和端口号
+
+
