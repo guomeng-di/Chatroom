@@ -240,5 +240,35 @@ LT:
 这个瞬间：  
 ET通知一次。  
 就算没读完,状态也是可读->可读,所以不会启动epoll_wait()函数  
-## 为什么用LT  
+## ET为什么一定要清空缓冲区(循环读到缓冲区空)   
+最初,缓冲区:abcdefg  
+第一次从无到有,故会epoll_wait一次  
+假设只recv了abc  
+缓冲区还有:defg  
+一直留在缓冲区,就算以后该客户端的缓冲区有了新发来的消息123  
+ET也因为状态一直可读而不汇报  
+因此,ET写法:  
+```
+while(true)
+{
+    int n = recv(fd, buf, sizeof(buf), 0);
+
+    if(n > 0)
+    {
+        //处理数据
+    }
+    else if(n == -1 && errno == EAGAIN)
+    {
+        //缓冲区已经空了
+        break;
+    }
+    else
+    {
+        //客户端关闭或出错
+        break;
+    }
+}
+```
+
+
 
