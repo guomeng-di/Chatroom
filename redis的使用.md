@@ -74,3 +74,95 @@ epoll_event
 
 # Redis用法
 string,hash(==结构体),set(元素不重复+查找快),list(消息队列)
+
+## Hash
+>
+HSET  
+HGET  
+HGETALL  
+HEXISTS  
+>
+
+## Set
+>
+SADD  
+SREM  
+SISMEMBER  
+SMEMBERS  
+>
+
+## List
+>
+LPUSH/RPUSH  
+LRANGE  
+LPOP 
+>
+
+# HASh
+
+1. HSET(hash set,给hash设置字段)  
+eg:HSET user:tom password 123456  
+user:tom  
+↓  
+这个Hash对象  
+password  
+↓  
+字段名  
+123456  
+↓  
+字段值  
+相当于c++,user["tom"].password="123456";  
+
+2. HGET(hash get,读取hash中某个字符段)  
+eg:HGET user:tom password  
+返回:123456  
+相当于:cout<<user["tom"].password;  
+
+3. HCETALL(hash get all,读取整个对象)  
+eg:HGETALL user:tom  
+返回:password 123456  
+email tom@qq.com 
+相当于:cout<<"user["tom"]";打印整个结构体   
+4. RPUSH(right push,把消息追加到尾部) 
+eg:RPUSH offline:jack hello
+相当于:offline["jack"].push_back("hello");
+5. HEXISTS(hash exists,判断hash字段是否存在)  
+eg:HEXISTS user:tom   
+意思:user中是否存在tom   
+存在则注册失败,否则注册   
+
+# SET 
+相当于unordered_set  
+
+1. SADD(set add,向集合中添加元素)
+eg:SADD friends:tom jack  
+相当于:friends["tom"].insert("jack"); 
+2. SISMEMBER(set is member)  
+eg:SISMEMBER friends:tom jack 
+相当于:friends["tom"].find("jack");  
+返回1,是好友;返回0,不是好友  
+3. SMEMBERS(set members,获取整个集合)
+eg:
+有friends tom:  
+jack  
+rose  
+Alice  
+当: SMEMBERS friends:tom  
+返回:  
+jack  
+rose  
+Alice  
+4. SREM(set remove,删除集合中的元素)  
+eg:tom和jack删除好友时,需要:  
+SREM friends:tom jack  
+SREM friends:jack tom  
+# LIST
+#
+对于聊天室,redis和c++中STL很相似,故可简单理解为  
+Redis=网络版STL容器 
+ 
+
+
+
+
+
