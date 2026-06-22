@@ -157,10 +157,41 @@ eg:tom和jack删除好友时,需要:
 SREM friends:tom jack  
 SREM friends:jack tom  
 # LIST
+为什么需要list?
+看一个场景:
+A同学离线,期间B C D同学留言  
+B:hello C:hi D:a  
+想让A上线后依次看到三者留言,用list来存    
+1. RPUSH(right push,从右边插入)  
+eg:RPUSH offline:jack hello
+RPUSH offline:jack hi  
+结果:  
+offline jack:  
+hello  
+hi  
+2. LPOP(list pop,从左边取出一个元素并删除)  
+3. LRANGE(list range,查看list中的一段数据)  
+eg:LRANGE offline:jack 0 -1  
+表示获取jack离线信息中,从第一个元素到最后一个元素  
+4. DEL  
+删除一个key  
+eg:DEL offline:jack  
+则jack的offline全部被删除  
+5. LLEN(list len,获取list长度)   
+eg:
+offline:jack  
+msg1  
+msg2  
+msg3  
+输入:LLEN offline:jack  
+返回:3  
+相当于:.size()  
 #
 对于聊天室,redis和c++中STL很相似,故可简单理解为  
 Redis=网络版STL容器 
- 
+
+# c++怎么操作redis
+
 
 
 
