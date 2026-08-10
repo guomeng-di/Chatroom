@@ -1,0 +1,187 @@
+//message id:定义消息类型编号,给消息分类
+// protocol/MsgId.h
+#pragma once
+
+
+// ============================
+// client -> server 请求消息
+// ============================
+
+enum MsgId
+{
+    CHAT_MSG = 1,
+
+    ADD_FRIEND_MSG = 2,
+
+    FRIEND_LIST_MSG = 3,
+
+    DELETE_FRIEND_MSG = 4,
+
+    GROUP_LIST_MSG = 5,
+
+    SEND_FRIEND_REQUEST_MSG = 6,
+
+    GET_FRIEND_REQUEST_MSG = 7,
+
+    HANDLE_FRIEND_REQUEST_MSG = 8,
+
+    CREATE_GROUP_MSG = 9,
+
+    JOIN_GROUP_MSG = 10,//申请加入群
+
+    GROUP_CHAT_MSG = 11,//群聊发送消息
+
+    GROUP_MEMBER_MSG = 12,
+
+    LEAVE_GROUP_MSG = 13,
+
+
+    LOGIN_MSG = 14,
+
+    REGISTER_MSG = 15,
+
+
+    LOGOUT_MSG = 16,
+
+    FILE_SEND_MSG = 17,
+
+    OFFLINE_MSG = 18,
+
+    DELETE_ACCOUNT_MSG = 19,//注销
+
+    GET_PRIVATE_HISTORY=20,
+
+    GET_GROUP_HISTORY =21,
+
+    KICK_MEMBER_MSG = 22,      //踢成员
+
+    DELETE_GROUP_MSG = 23,     //解散群
+
+    ADD_GROUP_ADMIN_MSG = 24,  //添加管理员
+
+    REMOVE_GROUP_ADMIN_MSG =25, //删除管理员
+
+    GET_GROUP_REQUEST_MSG = 26,//查看群申请
+
+    HANDLE_GROUP_REQUEST_MSG = 27,//处理群申请
+
+    SEND_VERIFY_CODE_MSG=28,//发送验证码
+
+    HEARTBEAT_MSG=29,//心跳检测
+
+    RESET_PASSWORD_MSG=30,//找回密码
+
+    ADD_BLOCK_MSG=31,//屏蔽好友消息
+
+    REMOVE_BLOCK_MSG=32, //取消屏蔽好友
+
+    SEND_FILE_REQUEST_MSG=33,//发送文件请求
+};
+
+
+// ============================
+// server返回消息
+// ============================
+
+enum ResponseId
+{
+
+    LOGIN_ACK = 1001,
+
+    REGISTER_ACK = 1002,
+
+
+    CHAT_ACK = 1003,
+
+    ADD_FRIEND_ACK = 1004,
+
+    FRIEND_LIST_ACK = 1005,
+
+    DELETE_FRIEND_ACK = 1006,
+
+
+    SEND_FRIEND_REQUEST_ACK = 1007,
+
+    GET_FRIEND_REQUEST_ACK = 1008,
+
+    HANDLE_FRIEND_REQUEST_ACK = 1009,
+
+
+    CREATE_GROUP_ACK = 1010,
+
+    JOIN_GROUP_ACK = 1011,
+
+    GROUP_LIST_ACK = 1012,
+
+    GROUP_MEMBER_ACK = 1013,
+
+    LEAVE_GROUP_ACK = 1014,
+
+    GROUP_CHAT_ACK = 1015,
+
+    LOGOUT_ACK = 1016,
+
+    DELETE_ACCOUNT_ACK = 1019,
+
+    GET_PRIVATE_HISTORY_ACK=1020,
+
+    GET_GROUP_HISTORY_ACK=1021,
+
+    //群管理响应
+
+    KICK_MEMBER_ACK = 1022,
+
+    DELETE_GROUP_ACK = 1023,
+
+    ADD_GROUP_ADMIN_ACK = 1024,
+
+    REMOVE_GROUP_ADMIN_ACK = 1025,
+
+    GET_GROUP_REQUEST_ACK=1026,
+
+    HANDLE_GROUP_REQUEST_ACK=1027,
+
+    SEND_VERIFY_CODE_ACK=1028,
+
+    HEARTBEAT_ACK=1029,
+
+    RESET_PASSWORD_ACK=1030,
+
+    ADD_BLOCK_ACK=1031,
+
+    REMOVE_BLOCK_ACK=1032
+
+};
+
+
+
+// ============================
+// 服务端主动通知
+// ============================
+
+enum NotifyId
+{
+
+    CHAT_NOTIFY = 2001,
+
+    GROUP_CHAT_NOTIFY = 2002,
+
+    FRIEND_REQUEST_NOTIFY = 2003,
+
+    OFFLINE_NOTIFY = 2004,
+
+    FRIEND_STATUS_NOTIFY=2005,
+
+    GROUP_OFFLINE_NOTIFY=2006,
+
+    //群管理通知
+
+    KICK_MEMBER_NOTIFY=2007,
+
+    GROUP_DELETE_NOTIFY=2008,
+
+    GROUP_ADMIN_NOTIFY=2009,
+
+    GROUP_REQUEST_NOTIFY = 2010//申请进群
+
+};
