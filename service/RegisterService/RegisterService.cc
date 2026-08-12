@@ -28,15 +28,14 @@ json RegisterService:: registerUser(const json& js){
     string email=js["email"];
     string inputCode=js["code"];
     //对比验证码
-    RedisManager redis;
-    if(!redis.connect()){
+    if(!RedisManager::instance().connect()){
     Logger::instance().error("redis connect failed");
     res["errno"]=1;
     res["message"]="redis connect failed";
 
     return res;
 }
-    string realCode=redis.getVerifyCode(email);
+    string realCode=RedisManager::instance().getVerifyCode(email);
     if(inputCode!=realCode){
         res["errno"]=1;
         res["message"]="code wrong";

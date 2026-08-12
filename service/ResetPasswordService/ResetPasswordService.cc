@@ -23,14 +23,13 @@ Logger::instance().info("reset email="+email);
 
 Logger::instance().info("reset code="+code);
     //1验证验证码
-    RedisManager redis;
-    if(!redis.connect()){
+    if(!RedisManager::instance().connect()){
         Logger::instance().error("redis connect failed");
         res["errno"]=1;
         res["message"]="redis connect failed";
         return res;
     }
-    string right_code=redis.getVerifyCode(email);
+    string right_code=RedisManager::instance().getVerifyCode(email);
 
     Logger::instance().info("email="+email);
     cout<<"email="<<email<<endl;

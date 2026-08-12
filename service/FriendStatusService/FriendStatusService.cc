@@ -8,7 +8,6 @@
 #include <iostream>
 #include <unordered_set>
 using namespace std;
-extern OnlineUserManager onlineUserManager;
 // 用户下线通知
 void FriendStatusService::notifyOffline(const string& username){
     //if(!isOnline(username)) return;
@@ -29,7 +28,7 @@ void FriendStatusService::notifyOffline(const string& username){
     //string sendBuf=MessageCodec::encode(jsonStr);
     //遍历好友,推送下线通知
     for(const string& friendName:friendList){
-        TcpConnection* conn=onlineUserManager.getConnection(friendName);
+        TcpConnection* conn=OnlineUserManager::instance().getConnection(friendName);
         if(conn!=NULL){
             cout<<"send offline notify to "<<friendName<<endl;
              conn->send(jsonStr);
@@ -58,7 +57,7 @@ void FriendStatusService::notifyOnline(const string& username){
     //string sendBuf=MessageCodec::encode(jsonStr);
     //遍历好友,推送下线通知
     for(const string& friendName:friendList){
-        TcpConnection* conn=onlineUserManager.getConnection(friendName);
+        TcpConnection* conn=OnlineUserManager::instance().getConnection(friendName);
         if(conn!=NULL){
             cout<<"send online notify to "<<friendName<<endl;
              conn->send(jsonStr);

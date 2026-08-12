@@ -11,7 +11,6 @@
 #include "../../netlib/base/Logger.h"
 
 using namespace std;
-extern OnlineUserManager onlineUserManager;
 ChatService::ChatService(){}
 ChatService::~ChatService(){}
 json ChatService::chat(const json& js,TcpConnection* conn){
@@ -84,7 +83,7 @@ if(!friendModel.isFriend(from,to)){
             Logger::instance().error("save private message failed");
         //model.saveMessage(from,to,msg);
 
-            TcpConnection* target=onlineUserManager.getConnection(to);
+            TcpConnection* target=OnlineUserManager::instance().getConnection(to);
     //4调用 TcpConnection::send() 转发
     if(target){
         target->send(sendMsg.dump());
@@ -94,8 +93,7 @@ if(!friendModel.isFriend(from,to)){
         response["message"]="send success";
     }else{
         //离线->redis
-        RedisManager redis;
-        redis.connect();
+        RedisManager::instance().connect();
         string offlineMsg = sendMsg.dump();
 
 
@@ -103,7 +101,7 @@ if(!friendModel.isFriend(from,to)){
     // cout<<offlineMsg<<endl;
     Logger::instance().info(to+" is offline, save message");
     
-        redis.saveOfflineMessage(to,offlineMsg);
+        RedisManager::instance().saveOfflineMessage(to,offlineMsg);
         response["msgid"]=CHAT_ACK;
         response["errno"]=0;
         response["message"]="user offline, save message";

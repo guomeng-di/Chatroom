@@ -15,7 +15,7 @@ using namespace std;
 //             message:"hello"
 //         }
 // 在线用户管理器
-extern OnlineUserManager onlineUserManager;
+
 GroupChatService::GroupChatService(){}
 GroupChatService::~GroupChatService(){}
 json GroupChatService::groupChat(const json& js,TcpConnection* conn){
@@ -79,7 +79,7 @@ json GroupChatService::groupChat(const json& js,TcpConnection* conn){
     //遍历群成员发送
     for(auto& member:members){
         if(member==username) continue;
-        TcpConnection* target=onlineUserManager.getConnection(member);
+        TcpConnection* target=OnlineUserManager::instance().getConnection(member);
     //在线
     if(target){
         target->send(data);
@@ -90,9 +90,8 @@ json GroupChatService::groupChat(const json& js,TcpConnection* conn){
     else{
         //cout<<"save group offline message:"<<member<<endl;
         //Redis保存离线消息需要
-        RedisManager redis;
-        if(redis.connect()){
-        redis.saveGroupOfflineMessage(member,data);
+        if(RedisManager::instance().connect()){
+        RedisManager::instance().saveGroupOfflineMessage(member,data);
         offlineCount++;
     }
     }

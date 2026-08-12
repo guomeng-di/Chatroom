@@ -22,14 +22,13 @@ json VerifyCodeService::sendCode(const json& js){
     Logger::instance().info("verify code="+code);
 
     //redis保存
-    RedisManager redis;
-    if(!redis.connect()){ 
+    if(!RedisManager::instance().connect()){ 
         Logger::instance().error("redis connect failed");
         res["errno"]=1;
         res["message"]="send verify code failed";
         return res;
     }
-    redis.saveVerifyCode(email,code);
+    RedisManager::instance().saveVerifyCode(email,code);
     //发送给客户端邮箱
     EmailManager::sendCode(email,code);
 

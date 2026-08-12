@@ -1,17 +1,19 @@
-#include "MessageCodec.h"
 #include <iostream>
+#include <string>
+#include "MessageCodec.h"
 using namespace std;
-
+string encodeBinary(int msgid,const json& js,const std::string& data);
 int main()
 {
-    string s = "hello";
+    string data="hello";
+    nlohmann::json js;
+    auto msg= MessageCodec::encodeBinary(35, js, data);
 
-    // 编码：字符串 -> [4字节头][hello]
-    string data = MessageCodec::encode(s);
+    int msgid;
+    int len;
+    MessageCodec::decodeHeader(msg,msgid,len);
 
-    // 解码：完整包还原字符串
-    string msg = MessageCodec::decode(data);
-
-    cout << msg << endl;
+    cout<<msgid<<endl;
+    cout<<len<<endl;
     return 0;
 }

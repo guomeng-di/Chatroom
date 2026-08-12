@@ -1,8 +1,9 @@
 #include "ClientMessageHandler.h"
 #include "../../protocol/MsgId.h"
+#include "../FileClient/FileClient.h"
 #include <iostream>
 using namespace std;
-void ClientMessageHandler::handle(const json& js){
+void ClientMessageHandler::handle(const json& js,int fd){
         if(!js.contains("msgid")){
             cout<<"invalid message:"<<js<<endl;
         }
@@ -151,6 +152,51 @@ void ClientMessageHandler::handle(const json& js){
             cout<<js["message"]<<endl;
             cout<<"============================"<<endl;
 }
+        //发送文件申请
+        else if(msgid==FILE_REQUEST_NOTIFY){
+            cout<<"\n\n==========文件请求=========="<<endl;
+            //message里存文件信息
+            json fileInfo;
+            if(js.contains("message") &&js["message"].is_string()){
+                //离线消息
+                fileInfo=json::parse(js["message"].get<string>());
+            }else{
+                //在线消息
+                fileInfo=js;
+            }
+
+            string fromname=fileInfo["fromname"];
+            string filename=fileInfo["filename"];
+            long long filesize=fileInfo["filesize"];
+        
+            if(!fileInfo.contains("fromname")||!fileInfo.contains("filename")||!fileInfo.contains("filesize")){
+                cout<<"file request info error"<<endl;
+                return;
+            }
+            cout<<"发送者:"<<fromname<<endl;
+            cout<<"文件:"<<filename<<endl;
+            cout<<"大小:"<<filesize<<endl;
+
+            FileClient::instance().setPendingFile(fromname,filename,filesize);
+            cout<<"============================"<<endl;
+        }
+        //接收文件发送请求(收到 FILE_ACCEPT_NOTIFY 的人是文件发送者)
+        else if(msgid==FILE_ACCEPT_NOTIFY){
+            cout<<"\n==========文件请求通过=========="<<endl;
+            if(!js.contains("filename")||!js.contains("fromname")){
+                cout<<"file accept info missing"<<endl;
+                return;
+            }
+            string sender=js["fromname"];
+            string filename=js["filename"];
+
+            cout<<sender<<" 接受文件"<<endl;
+            cout<<"开始发送文件:"<<filename<<endl;
+            
+            FileClient client;
+            client.sendFile(fd,filename,sender);
+            cout<<"============================"<<endl;
+        }
          
         //普通响应
         else{
@@ -158,4 +204,5 @@ void ClientMessageHandler::handle(const json& js){
             cout<<js<<endl;
             cout<<"============================"<<endl;
         }  
+
 }

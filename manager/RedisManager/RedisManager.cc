@@ -4,6 +4,12 @@
 #include "../../netlib/base/Logger.h"
 
 using namespace std;
+RedisManager& RedisManager::instance()
+{
+    // static局部变量：程序第一次调用才创建，全局仅此一份
+    static RedisManager obj;
+    return obj;
+}
 RedisManager::RedisManager(){
     redisContext_=nullptr;
 }
@@ -119,6 +125,7 @@ void RedisManager::clearGroupOfflineMessage(const string& username){
     if(reply) freeReplyObject(reply);
 }
 
+
 bool RedisManager::setOnline(const string& username){
     if(redisContext_==nullptr) return 0;
     redisContext* context=(redisContext*) redisContext_;
@@ -155,6 +162,8 @@ bool RedisManager::isOnline(const string& username){
     freeReplyObject(reply);
     return result;
 }
+
+
 bool RedisManager::saveVerifyCode(const string& target,const string& code){
     if(redisContext_==nullptr) return 0;
     redisContext* context=(redisContext*) redisContext_;
@@ -189,11 +198,48 @@ string RedisManager::getVerifyCode(const string& target){
     freeReplyObject(reply);
     return "";
 }
-bool RedisManager::deleteVerifyCode(const std::string& target){
+bool RedisManager::deleteVerifyCode(const string& target){
     if(redisContext_==nullptr) return 0;
     redisContext* context=(redisContext*) redisContext_;
     string key="verify:"+target;
     redisReply* reply=(redisReply*)redisCommand(context,"DEL %s",target.c_str());
     freeReplyObject(reply);
     return 1;
+}
+
+
+bool RedisManager::saveOfflineFileRequest(string& username,const json& js){
+    if(redisContext_==nullptr) return 0;
+    redisContext* context=(redisContext*) redisContext_;
+    string key="offline:file:"+username;
+    redisReply* reply=(redisReply*)redisCommand(context,"LPUSH %s %s",key.c_str(),js.dump().c_str());
+    if(reply==nullptr){
+        Logger::instance().error("redis save offline file failed");
+        return false;
+    }
+    freeReplyObject(reply);
+    Logger::instance().info("save offline file key="+key);
+    return 1;
+}
+vector<string> RedisManager::getOfflineFile(const string& username){
+    vector<string> messages;
+    if(redisContext_==NULL) return messages;
+    redisContext* context=(redisContext*)redisContext_;
+    string key="offline:file:"+username;
+
+    redisReply* reply=(redisReply*)redisCommand(context,"LRANGE %s 0 -1",key.c_str());
+    if(reply==NULL) return messages;
+
+    for(size_t i=0;i<reply->elements;i++){
+        if(reply->element[i]->str) messages.push_back(reply->element[i]->str);
+    }
+    freeReplyObject(reply);
+    return messages;
+}
+void RedisManager::clearOfflineFiles(const string& username){
+    if(redisContext_==nullptr) return;
+    redisContext* context =(redisContext*) redisContext_;
+    string key="offline:file:"+username;
+    redisReply* reply =(redisReply*)redisCommand(context,"DEL %s",key.c_str());
+    if(reply) freeReplyObject(reply);
 }

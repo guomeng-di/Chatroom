@@ -6,7 +6,6 @@
 #include "../../manager/OnlineUserManager/OnlineUserManager.h"
 #include "../../netlib/base/Logger.h"
 using namespace std;
-extern OnlineUserManager onlineUserManager;
 
 json LogoutService::logout(const json& js){
     json res;
@@ -19,10 +18,9 @@ json LogoutService::logout(const json& js){
         return res;
     }
     string username=js["username"];
-    onlineUserManager.removeUser(username);
+    OnlineUserManager::instance().removeUser(username);
     //redis修改状态
-    RedisManager redis;
-    if(redis.connect()) redis.setOffline(username);
+    if(RedisManager::instance().connect()) RedisManager::instance().setOffline(username);
 
     Logger::instance().info(
         username + " remove online user success"

@@ -5,17 +5,21 @@
 #include <thread>
 #include <atomic>
 #include <string>
+#include "../netlib/base/Logger.h"
 #include <limits>
+#include "../src/config.h"
 #include "ClientMessageHandler/ClientMessageHandler.h"
 #include "../protocol/MessageCodec/MessageCodec.h"
 #include "../protocol/MsgId.h"
 #include "../manager/RedisManager/RedisManager.h"
 #include <nlohmann/json.hpp>
-#include "../service/ResetPasswordService/ResetPasswordService.h"
-#include "../service/VerifyCodeService/VerifyCodeService.h"
+#include "FileClient/FileClient.h"
+//#include "../service/ResetPasswordService/ResetPasswordService.h"
+//#include "../service/VerifyCodeService/VerifyCodeService.h"
 using namespace std;
 using json=nlohmann::json;
 string username;
+string currentSendFile;
 void recvMessage(int fd){
     char buf[1024];
     while(1){
@@ -27,18 +31,26 @@ void recvMessage(int fd){
         string response(buf,len);
 
         string jsonStr=MessageCodec::decode(response);//提取出纯净的JSON字符串
+
+        cout<<"raw recv size="
+    <<response.size()
+    <<endl;
+
+cout<<"decode result="
+    <<jsonStr
+    <<endl;
+
+
+
         if(jsonStr.empty()){
           cout<<"empty response"<<endl;
           continue;
 }
         json js=json::parse(jsonStr);//把文本字符串{"msgid":2,"username":"tom"}转换成程序可以操作的json对象js
-        ClientMessageHandler::handle(js);
+        ClientMessageHandler::handle(js,fd);
     }
 }
 bool login(int fd){
-    //bool loginSuccess=false;
-    //cin.clear();
-    //cin.ignore(numeric_limits<streamsize>::max(), '\n');
 //1输入
     cout<<"username:"; cin>>username;
     string password;
@@ -71,6 +83,7 @@ while(1){
     if(msgid==LOGIN_ACK){
         if(js["errno"]==0){
             cout<<"login success"<<endl;
+            FileClient::instance().setUsername(username);
             return 1;
              //loginSuccess=true;
             
@@ -96,7 +109,15 @@ while(1){
     string msg=js["message"];
     cout<<msg<<endl;
     cout<<"============================"<<endl;
-}else{
+    }else if(msgid ==FILE_REQUEST_NOTIFY){
+    cout<<"\n\n==========离线文件=========="<<endl;
+    string msg=js["message"];
+    json fileJs=json::parse(msg);
+    cout<<"发送者:"<<fileJs["fromname"]<<endl;
+    cout<<"文件名:"<<fileJs["filename"]<<endl;
+    cout<<"大小:"<<fileJs["filesize"]<<endl;
+    cout<<"============================"<<endl;
+    }else{
     cout<<"other message:"
         <<result
         <<endl;
@@ -273,6 +294,9 @@ while(true){
         cout<<"30 reset password"<<endl;
         cout<<"31 block friend"<<endl;
         cout<<"32 unblock friend"<<endl;
+        cout<<"33 send file request"<<endl;
+        cout<<"34 accept file request"<<endl;
+        //cout<<"35 send file data"<<endl;
         cout<<"----------------------------------"<<endl;
         
 
@@ -705,16 +729,21 @@ while(true){
             cout<<"your new password:";
             cin.ignore(numeric_limits<streamsize>::max(), '\n');
             cin>>password;
-            string json=
-            "{"
-            "\"msgid\":"+to_string(RESET_PASSWORD_MSG)+","
-            "\"email\":\""+email+"\","
-            "\"code\":\""+code+"\","
-            "\"password\":\""+password+"\""
-            "}";
+            // string json=
+            // "{"
+            // "\"msgid\":"+to_string(RESET_PASSWORD_MSG)+","
+            // "\"email\":\""+email+"\","
+            // "\"code\":\""+code+"\","
+            // "\"password\":\""+password+"\""
+            // "}";
+            json js;
+            js["msgid"]=RESET_PASSWORD_MSG;
+            js["email"]=email;
+            js["code"]=code;
+            js["password"]=password;
 
 
-            string sendData=MessageCodec::encode(json);
+            string sendData=MessageCodec::encode(js.dump());
             send(fd,sendData.data(),sendData.size(),0);
 }
 
@@ -724,13 +753,17 @@ while(true){
             cout<<"block name:";
             cin>>blockname;
 
-            string json="{"
-            "\"msgid\":"+to_string(ADD_BLOCK_MSG)+","
-            "\"username\":\""+username+"\","
-            "\"blockname\":\""+blockname+"\""
-            "}";
+            // string json="{"
+            // "\"msgid\":"+to_string(ADD_BLOCK_MSG)+","
+            // "\"username\":\""+username+"\","
+            // "\"blockname\":\""+blockname+"\""
+            // "}";
+            json js;
+            js["msgid"]=ADD_BLOCK_MSG;
+            js["username"]=username;
+            js["blockname"]=blockname;
 
-            string sendData=MessageCodec::encode(json);
+            string sendData=MessageCodec::encode(js.dump());
             send(fd,sendData.data(),sendData.size(),0);
 }
 
@@ -740,17 +773,85 @@ while(true){
             cout<<"remove block name:";
             cin>>unblockname;
 
-            string json="{"
-            "\"msgid\":"+to_string(REMOVE_BLOCK_MSG)+","
-            "\"username\":\""+username+"\","
-            "\"blockname\":\""+unblockname+"\""
-            "}";
+            // string json="{"
+            // "\"msgid\":"+to_string(REMOVE_BLOCK_MSG)+","
+            // "\"username\":\""+username+"\","
+            // "\"blockname\":\""+unblockname+"\""
+            // "}";
+            json js;
+            js["msgid"]=REMOVE_BLOCK_MSG;
+            js["username"]=username;
+            js["blockname"]=unblockname;
 
-            string sendData=MessageCodec::encode(json);
+            string sendData=MessageCodec::encode(js.dump());
             send(fd,sendData.data(),sendData.size(),0);
 }
 
-   }  
+        //发送文件申请
+        else if(cmd==SEND_FILE_REQUEST_MSG){
+            string toname,filename;
+            //long long filesize;
+            cout<<"toname:";
+            cin>>toname;
+            cout<<"filename:";
+            cin.ignore(numeric_limits<streamsize>::max(), '\n');
+            cin>>filename;
+            currentSendFile=filename;
+            // cout<<"filesize:";
+            // cin.ignore(numeric_limits<streamsize>::max(), '\n');
+            // cin>>filesize;
+
+            //由文件名->文件路径->获取文件大小
+            string filepath=FILE_ROOT+filename;
+            ifstream file(filepath,ios::binary);
+            if(!file.is_open()){
+                Logger::instance().error("file not exist");
+                cout<<"file not exist"<<endl;
+                break;
+            }
+            file.seekg(0,ios::end);//读指针移到最后
+            int filesize=file.tellg();//查询文件字节数 tellg:查询当前读光标距离文件开头有多少字节
+            file.close();
+            json js;
+            js["msgid"]=SEND_FILE_REQUEST_MSG;
+            js["fromname"]=username;
+            js["toname"]=toname;
+            js["filename"]=filename;
+            js["filesize"]=filesize;
+
+            string sendData=MessageCodec::encode(js.dump());
+            send(fd,sendData.data(),sendData.size(),0);
+}  
+        //接受文件请求
+        else if(cmd==FILE_ACCEPT_MSG){
+            string fromname;
+            cout<<"accept from:";cin>>fromname;
+            json js;
+            js["msgid"]=FILE_ACCEPT_MSG;
+            js["fromname"]=fromname;
+
+            js["toname"]=FileClient::instance().getPendingFileSender();
+            js["filename"]=FileClient::instance().getPendingFilename();
+            
+            string sendData=MessageCodec::encode(js.dump());
+            send(fd,sendData.data(),sendData.size(),0);
+            
+        }
+        // //发送文件
+        // else if(cmd==FILE_DATA_MSG){
+        //     string filename,toname;
+        //     cout<<"filename:";cin>>filename;
+        //     cout<<"toname:";
+        //     cin.ignore(numeric_limits<streamsize>::max(), '\n');
+        //     cin>>toname;
+
+        //     FileClient client;
+        //     client.sendFile(fd,filename,toname);
+            
+        // }
+  
+    }
     close(fd);
+
     return 0;
 }

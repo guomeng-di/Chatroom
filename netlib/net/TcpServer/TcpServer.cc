@@ -37,8 +37,9 @@ void TcpServer::checkConnectionTimeout(){
         Logger::instance().info( "check fd="+to_string(it->first));
         if(conn->isTimeout()){
             Logger::instance().error("connection timeout");
-            conn->handleClose();
-            it=connections_.erase(it);
+            //conn->handleClose();
+            //it=connections_.erase(it);
+            continue;
         }else ++it;
     }
 }

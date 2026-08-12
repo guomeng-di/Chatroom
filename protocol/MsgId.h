@@ -76,8 +76,14 @@ enum MsgId
     REMOVE_BLOCK_MSG=32, //取消屏蔽好友
 
     SEND_FILE_REQUEST_MSG=33,//发送文件请求
-};
 
+    FILE_ACCEPT_MSG=34,//接收方接收
+
+    FILE_DATA_MSG=35,//文件分片二进制
+
+    FILE_FINISH_MSG=36//文件发送完成
+};
+ 
 
 // ============================
 // server返回消息
@@ -149,7 +155,13 @@ enum ResponseId
 
     ADD_BLOCK_ACK=1031,
 
-    REMOVE_BLOCK_ACK=1032
+    REMOVE_BLOCK_ACK=1032,
+
+    SEND_FILE_REQUEST_ACK=1033,
+
+    FILE_ACCEPT_ACK=1034,
+
+    FILE_FINISH_ACK=1035
 
 };
 
@@ -182,6 +194,17 @@ enum NotifyId
 
     GROUP_ADMIN_NOTIFY=2009,
 
-    GROUP_REQUEST_NOTIFY = 2010//申请进群
+    GROUP_REQUEST_NOTIFY = 2010,//申请进群
+
+    // 文件通知
+
+    FILE_REQUEST_NOTIFY=2011,
+
+    FILE_ACCEPT_NOTIFY=2012,
+
+    FILE_DATA_NOTIFY=2013,
+
+    FILE_FINISH_NOTIFY=2014
+
 
 };

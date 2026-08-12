@@ -71,7 +71,7 @@ json GroupRequestService::handleGroupRequest(const json& js){
             res["message"]="add member failed";
             return res;
         }
-        //删除申请记录
+        //删除申请记录-
         requestModel.deleteRequest(groupname,username);
         res["errno"]=0;
         res["message"]="accept success";
@@ -81,7 +81,7 @@ json GroupRequestService::handleGroupRequest(const json& js){
         res["message"]="reject success";
 
     }
-    TcpConnection* conn =onlineUserManager.getConnection(username);
+    TcpConnection* conn =OnlineUserManager::instance().getConnection(username);
     if(conn){
         json notify;
         notify["msgid"]=GROUP_REQUEST_NOTIFY;

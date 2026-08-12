@@ -48,22 +48,14 @@ std::vector<PrivateMessage> PrivateMessageModel::getMessages(const std::string& 
     MYSQL* conn=mysql.getConnection();
     if(conn==nullptr) return res;
     //2查
-    if(mysql_query(conn,sql.c_str()))
-{
-    Logger::instance().error(
-        "get private message query failed"
-    );
-
+    if(mysql_query(conn,sql.c_str())){
+    Logger::instance().error("get private message query failed");
     return res;
 }
     //3保存结果
     MYSQL_RES* result=mysql_store_result(conn);
-    if(result==nullptr)
-{
-    Logger::instance().error(
-        "get private message result failed"
-    );
-
+    if(result==nullptr){
+    Logger::instance().error("get private message result failed");
     return res;
 }
     //行

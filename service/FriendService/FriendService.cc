@@ -1,10 +1,11 @@
 #include "FriendService.h"
 #include "../../model/FriendModel/FriendModel.h"
 #include <iostream>
-#include "../../protocol/MsgId.h"
-#include "../../manager/OnlineUserManager/OnlineUserManager.h" 
-#include "../../manager/RedisManager/RedisManager.h" 
 
+#include "../../protocol/MsgId.h"
+//#include "../../manager/OnlineUserManager/OnlineUserManager.h" 
+#include "../../manager/RedisManager/RedisManager.h" 
+#include "../../client/FileClient/FileClient.h"
 #include "../../netlib/base/Logger.h"
 using namespace std;
      //OnlineUserManager onlineUserManager;
@@ -72,11 +73,10 @@ json FriendService::getFriendList(const json& js){
     res["errno"]=0;
     // OnlineUserManager onlineUserManager;
     for(auto& f:friends){
-        RedisManager redis;
         json friendInfo;
         friendInfo["name"]=f;
-        friendInfo["online"]=redis.isOnline(f);
-        friendInfo["online"]=redis.isOnline(f); 
+        friendInfo["online"]=RedisManager::instance().isOnline(f);
+        friendInfo["online"]=RedisManager::instance().isOnline(f); 
         res["friends"].push_back(friendInfo);
     }
     return res;

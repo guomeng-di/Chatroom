@@ -10,11 +10,19 @@ std::string JsonProtocol::encode(const json& js){
 }
 json JsonProtocol::decode(const std::string& msg){
     //return json::parse(msg);
-    try{
-        return json::parse(msg);
-    }
-    catch(const exception& e){
-        Logger::instance().error(string("json parse error: ") + e.what());
-        return json();
-    }
+    // try{
+    //     return json::parse(msg);
+    // }
+    // catch(const exception& e){
+    //     Logger::instance().error(string("json parse error: ") + e.what());
+    //     return json();
+    // }
+    string jsonStr(
+        msg.data()+4,
+        msg.size()-4
+    );
+
+
+    return json::parse(jsonStr);
+
 }

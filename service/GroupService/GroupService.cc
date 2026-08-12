@@ -87,7 +87,7 @@ json GroupService::joinGroup(const json& js){
         notify["groupname"]=groupname;
         notify["username"]=username;
         notify["message"]=username+" apply join group "+groupname;
-        TcpConnection* owerConn=onlineUserManager.getConnection(owner);
+        TcpConnection* owerConn=OnlineUserManager::instance().getConnection(owner);
         if(owerConn){
             owerConn->send(notify.dump());
         }
@@ -95,7 +95,7 @@ json GroupService::joinGroup(const json& js){
         //通知管理员
         unordered_set<string> admins=model.getAdmins(groupname);
         for(auto& admin:admins){
-        TcpConnection* adminConn=onlineUserManager.getConnection(admin);
+        TcpConnection* adminConn=OnlineUserManager::instance().getConnection(admin);
         if(adminConn){
             adminConn->send(notify.dump());
         }

@@ -37,10 +37,11 @@ json LoginService::login(const json& js,TcpConnection* conn){
 
         //发送登录成功
         conn->send(response.dump());
-        onlineUserManager.addUser(username,conn);
+
+        //FileClient::instance().setUsername(username);
+        OnlineUserManager::instance().addUser(username,conn);
         //redis修改状态
-        RedisManager redis_;
-        if(redis_.connect())redis_.setOnline(username);
+        if(RedisManager::instance().connect())RedisManager::instance().setOnline(username);
         
         FriendStatusService::notifyOnline(username);
         //cout<<"add online user: "<<username <<endl;
@@ -58,9 +59,8 @@ json LoginService::login(const json& js,TcpConnection* conn){
             conn->send(notify.dump());
         }
         //登录后读取离线消息
-        RedisManager redis;
-        if(redis.connect()){
-            vector<string> messages =redis.getOfflineMessage(username);
+        if(RedisManager::instance().connect()){
+            vector<string> messages =RedisManager::instance().getOfflineMessage(username);
             Logger::instance().info(username+" offline private message count="+to_string(messages.size()));
             for(auto& msg:messages){
                 json offlineMsg;
@@ -68,22 +68,35 @@ json LoginService::login(const json& js,TcpConnection* conn){
                 offlineMsg["message"]=msg;
                 conn->send(offlineMsg.dump());
             }
-            redis.clearOfflineMessage(username);
+            RedisManager::instance().clearOfflineMessage(username);
         }
 
         //读取群聊离线消息
-        if(redis.connect()){
-            vector<string> messages =redis.getGroupOfflineMessage(username);
+        if(RedisManager::instance().connect()){
+            vector<string> messages =RedisManager::instance().getGroupOfflineMessage(username);
             for(auto& msg:messages){
                 json offlineMsg;
                 offlineMsg["msgid"]=GROUP_OFFLINE_NOTIFY;
                 offlineMsg["message"]=msg;
                 conn->send(offlineMsg.dump());
             }
-            redis.clearGroupOfflineMessage(username);
+            RedisManager::instance().clearGroupOfflineMessage(username);
+        }
+
+        //读取离线时发送文件申请
+        if(RedisManager::instance().connect()){
+            vector<string> files =RedisManager::instance().getOfflineFile(username);
+            for(auto& file:files){
+                json offlineFile;
+                offlineFile["msgid"]=FILE_REQUEST_NOTIFY;
+                offlineFile["message"]=file;
+                conn->send(offlineFile.dump());
+            }
+            RedisManager::instance().clearOfflineFiles(username);
         }
 
     }else{
+
         Logger::instance().error(username+" login failed");
         response["msgid"]=LOGIN_ACK;
         response["errno"]=1;

@@ -8,7 +8,6 @@
 
 #include <iostream>
 using namespace std;
-extern OnlineUserManager onlineUserManager;
 FriendRequestService::FriendRequestService(){
 }
 FriendRequestService::~FriendRequestService(){
@@ -44,7 +43,7 @@ json FriendRequestService::sendRequest(const json& js){
     bool flag=model.addRequest(from,to);
     cout<<"addRequest result="<<flag<<endl;
     if(flag){
-        TcpConnection* target = onlineUserManager.getConnection(to);//根据用户名to,去在线用户管理器查找to的连接
+        TcpConnection* target =OnlineUserManager::instance().getConnection(to);//根据用户名to,去在线用户管理器查找to的连接
         //to在线时,直接通知to,from给你发消息
         if(target!=NULL){
             json notify;
@@ -107,7 +106,7 @@ json FriendRequestService::handleRequest(const json& js){
             // 添加好友成功后删除申请
             requestModel.removeRequest(from,to);
             // 通知申请人
-            TcpConnection* fromConn=onlineUserManager.getConnection(from);
+            TcpConnection* fromConn=OnlineUserManager::instance().getConnection(from);
             if(fromConn){
                 json msg;
                 msg["msgid"]=FRIEND_REQUEST_NOTIFY;
@@ -115,7 +114,7 @@ json FriendRequestService::handleRequest(const json& js){
                 fromConn->send(msg.dump());
             }
             // 通知被申请人
-            TcpConnection* toConn=onlineUserManager.getConnection(to);
+            TcpConnection* toConn=OnlineUserManager::instance().getConnection(to);
             if(toConn){
                 json msg;
                 msg["msgid"]=FRIEND_REQUEST_NOTIFY;

@@ -51,6 +51,7 @@ set(SERVICE_SRC
     service/VerifyCodeService/VerifyCodeService.cc
     service/ResetPasswordService/ResetPasswordService.cc 
     service/FriendBlockService/FriendBlockService.cc 
+    service/FileService/FileService.cc
 
 )
 
@@ -65,6 +66,7 @@ set(MODEL_SRC
     model/GroupMessageModel/GroupMessageModel.cc
     model/GroupRequestModel/GroupRequestModel.cc
     model/FriendBlockModel/FriendBlockModel.cc
+    model/FileModel/FileModel.cc
     
 )
 # Redis管理模块
@@ -117,6 +119,7 @@ add_executable(client
     client/client.cc
     netlib/base/Logger.cc
     client/ClientMessageHandler/ClientMessageHandler.cc
+    client/FileClient/FileClient.cc 
     ${PROTOCOL_SRC}
 )
 
@@ -138,4 +141,11 @@ find_package(CURL REQUIRED)
 target_link_libraries(
     server
     CURL::libcurl
+)
+
+# 测试协议编解码
+# 测试编解码，路径写完整相对路径
+add_executable(test_codec
+    protocol/MessageCodec/test_codec.cc
+    protocol/MessageCodec/MessageCodec.cc
 )

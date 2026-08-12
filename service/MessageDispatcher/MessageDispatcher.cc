@@ -17,6 +17,7 @@
 #include <iostream>
 #include "../DeleteAccountService/DeleteAccountService.h"
 #include "../ResetPasswordService/ResetPasswordService.h"
+#include "../FileService/FileService.h"
 #include "../../netlib/base/Logger.h"
 using namespace std;
 
@@ -261,6 +262,27 @@ void MessageDispatcher::dispatch(const json& js,TcpConnection* conn){
             conn->send(res.dump());
             break;
 }
+//33发送文件请求
+        case SEND_FILE_REQUEST_MSG:{
+            json res=FileService::sendFileRequest(js,conn);
+            conn->send(res.dump());
+            break;
+        }
+//34接受发送文件请求
+        case FILE_ACCEPT_MSG:{
+            json res=FileService::acceptFile(js,conn);
+            conn->send(res.dump());
+            break;
+        }
+//35发送文件
+        case FILE_DATA_MSG:{
+            FileService::sendFileData(js,conn);
+        }
+//36发送完毕
+        case FILE_FINISH_MSG:{
+            FileService::finishFile(js,conn);
+            break;
+        }
         
         
         default:
