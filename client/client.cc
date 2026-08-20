@@ -362,7 +362,7 @@ while(true){
     //create
     int heartbeatTimerFd=timerfd_create(CLOCK_MONOTONIC,0);
     if(heartbeatTimerFd < 0){
-    Logger.instance().error("timerfd_create");
+    Logger::instance().error("timerfd_create");
     close(fd);
     return -1;
 }
@@ -373,7 +373,7 @@ while(true){
    //之后每5秒触发一次
    timer.it_interval.tv_sec = 5;
    if(timerfd_settime(heartbeatTimerFd,0,&timer,nullptr)<0){
-    Logger.instance().error("timerfd_settime");
+    Logger::instance().error("timerfd_settime");
     close(heartbeatTimerFd);
     close(fd);
     return -1;
@@ -446,7 +446,7 @@ cout << "heartbeat timer started, interval=5s" << endl;
         int ret = select(maxfd + 1,&readfds,nullptr,nullptr,nullptr);//ret>0:有 1 个或者多个 fd 出事了（有数据来了）
         if(ret < 0){
             if(errno == EINTR) continue;
-            Logger.instance().error("select");
+            Logger::instance().error("select");
             break;
         }
         //心跳timer触发
