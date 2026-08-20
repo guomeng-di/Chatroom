@@ -30,11 +30,11 @@ void sendHeartbeat(int fd){
     js["msgid"]=HEARTBEAT_MSG;
     string sendData=MessageCodec::encode(js.dump());
     int n=send(fd,sendData.data(),sendData.size(),0);
-    if(n<=0) cout << "[heartbeat] send failed" << endl;
-    else cout << "\n[heartbeat] send" << endl;   
+    if(n<=0) Logger::instance().error("[heartbeat] send failed");
+    else Logger::instance().info("[heartbeat] send");
 }
 void recvMessage(int fd){
-    char buf[1024];
+    char buf[1024*4];
     while(1){
         int len=recv(fd,buf,sizeof(buf),0);
         if(len<=0){
@@ -77,7 +77,7 @@ bool login(int fd){
     }
 
    while(1){
-    char buf[1024];
+    char buf[1024*4];
     int len=recv(fd,buf,sizeof(buf),0);
     if(len<=0){
         cout<<"server close"<<endl;
@@ -104,61 +104,6 @@ bool login(int fd){
         // 登录阶段到达的其他通知，直接分发处理，避免丢失
         ClientMessageHandler::handle(js,fd);
     }
- 
-// //3接收
-// bool loginSuccess=0;
-// while(1){
-//     char buf[1024];
-//     int len=recv(fd,buf,sizeof(buf),0);
-//     if(len<=0){
-//         cout<<"server close"<<endl;
-//         close(fd);
-//         return 0;
-//     }
-//     string response(buf,len);
-//     string result=MessageCodec::decode(response);
-//     if(result.empty()){
-//        cout<<"empty response"<<endl;
-//        continue;
-// }
-//     json js=json::parse(result);
-//     int msgid=js["msgid"];
-//     if(msgid==LOGIN_ACK){
-//         if(js["errno"]==0){
-//             cout<<"login success"<<endl;
-//             FileClient::instance().setUsername(username);
-//             break;
-//              loginSuccess=true;
-            
-//         }else{
-//             cout<<"login fail"<<endl;
-//             return 0;
-//         }
-// }else if(msgid==FRIEND_REQUEST_NOTIFY){
-//     cout<<"\n==========好友申请=========="<<endl;
-//     cout<<js["message"]<<endl;
-//     cout<<"============================"<<endl;
-// }else if(msgid==CHAT_NOTIFY){
-//     cout<<"\n==========私聊消息=========="<<endl;
-//     cout<<"来自:"<<js["from"]<<endl;
-//     cout<<"消息:"<<js["message"]<<endl;
-//     cout<<"============================"<<endl;
-// }else if(msgid==GROUP_REQUEST_NOTIFY){
-//     cout<<"\n==========加群申请=========="<<endl;
-//     cout<<js["message"]<<endl;
-//     cout<<"============================"<<endl;
-// }else if(msgid==GROUP_OFFLINE_NOTIFY){
-//     cout<<"\n\n==========群离线消息=========="<<endl;
-//     cout<<js["message"]<<endl;
-//     cout<<"============================"<<endl;
-// } else if(msgid ==FILE_REQUEST_NOTIFY){
-//     cout<<"\n\n==========文件请求=========="<<endl;
-//     string msg=js["message"];
-//     cout<<msg<<endl;
-//     cout<<"============================"<<endl;
-// }else{
-//     cout<<"other message:"<<result<<endl;
-//  }
    }
     return 1;
 }
@@ -168,7 +113,7 @@ bool sendVerifyCode(int fd,const string& email){
     js["email"]=email;
     string data=MessageCodec::encode(js.dump());
     send(fd,data.data(),data.size(),0);
-    char buf[1024];
+    char buf[1024*4];
     int len=recv(fd,buf,sizeof(buf),0);
     if(len<=0){
         cout<<"server close"<<endl;
@@ -253,7 +198,7 @@ bool registerUser(int fd){
     string data=MessageCodec::encode(regMsg.dump());
     send(fd,data.data(),data.size(),0);
     //3接收
-    char buf[1024];
+    char buf[1024*4];
     int len=recv(fd,buf,sizeof(buf),0);
     if(len<=0){
         cout<<"server close"<<endl;
@@ -298,14 +243,60 @@ bool ResetPassword(int fd){
     send(fd,data.data(),data.size(),0);
     return 1;
 }
+void printMenu(){
+    cout<<"----------------------------------"<<endl;
+        cout<<"\n1 chat"<<endl;
+        //cout<<"2 add friend"<<endl;
+        cout<<"3 friend list"<<endl;
+        cout<<"4 delete friend"<<endl;
+        cout<<"5 group list"<<endl;
+        cout<<"6 send friend request"<<endl;
+        cout<<"7 view request"<<endl;
+        cout<<"8 accept/reject"<<endl;
+        cout<<"9 create group"<<endl;
+        cout<<"10 apply join group"<<endl;
+        cout<<"11 group chat"<<endl;
+        cout<<"12 group member"<<endl;
+        cout<<"13 leave group"<<endl;
+        //cout<<"14 login"<<endl;
+        //cout<<"15 register"<<endl;
+        cout<<"16 logout"<<endl;
+        cout<<"19 delete account"<<endl;
+        cout<<"20 get private history"<<endl;
+        cout<<"21 get group history"<<endl;
+        cout<<"22 kick member"<<endl;
+        cout<<"23 delete group"<<endl;
+        cout<<"24 add group admin"<<endl;
+        cout<<"25 delete group admin"<<endl;
+        cout<<"26 view group request"<<endl;
+        cout<<"27 handle group request"<<endl;
+        //cout<<"28 send verify code"<<endl;
+        //cout<<"29 heartbeat"<<endl;
+        cout<<"30 reset password"<<endl;
+        cout<<"31 block friend"<<endl;
+        cout<<"32 unblock friend"<<endl;
+        cout<<"33 send file request"<<endl;
+        cout<<"34 accept file request"<<endl;
+        //cout<<"37 query file block"<<endl;
+        //cout<<"35 send file data"<<endl;
+        cout<<"----------------------------------"<<endl;
+
+        cout<<"command:";
+
+
+
+}
 int main(int argc, char* argv[]){
-    string server_ip="10.30.0.128";
+    string server_ip;
     int server_port;
     // 支持：./client IP PORT
     if(argc==3){
         server_ip =argv[1];
         server_port=atoi(argv[2]);
     }else{
+        cout<<"server ip:";
+        cin>>server_ip;
+
         cout << "server port: ";
         cin >> server_port;
     }
@@ -381,43 +372,7 @@ while(true){
 cout << "heartbeat timer started, interval=5s" << endl;
 
     //循环显示目录
-    while(true) {
-        cout<<"----------------------------------"<<endl;
-        cout<<"\n1 chat"<<endl;
-        //cout<<"2 add friend"<<endl;
-        cout<<"3 friend list"<<endl;
-        cout<<"4 delete friend"<<endl;
-        cout<<"5 group list"<<endl;
-        cout<<"6 send friend request"<<endl;
-        cout<<"7 view request"<<endl;
-        cout<<"8 accept/reject"<<endl;
-        cout<<"9 create group"<<endl;
-        cout<<"10 apply join group"<<endl;
-        cout<<"11 group chat"<<endl;
-        cout<<"12 group member"<<endl;
-        cout<<"13 leave group"<<endl;
-        //cout<<"14 login"<<endl;
-        //cout<<"15 register"<<endl;
-        cout<<"16 logout"<<endl;
-        cout<<"19 delete account"<<endl;
-        cout<<"20 get private history"<<endl;
-        cout<<"21 get group history"<<endl;
-        cout<<"22 kick member"<<endl;
-        cout<<"23 delete group"<<endl;
-        cout<<"24 add group admin"<<endl;
-        cout<<"25 delete group admin"<<endl;
-        cout<<"26 view group request"<<endl;
-        cout<<"27 handle group request"<<endl;
-        cout<<"28 send verify code"<<endl;
-        //cout<<"29 heartbeat"<<endl;
-        cout<<"30 reset password"<<endl;
-        cout<<"31 block friend"<<endl;
-        cout<<"32 unblock friend"<<endl;
-        cout<<"33 send file request"<<endl;
-        cout<<"34 accept file request"<<endl;
-        //cout<<"37 query file block"<<endl;
-        //cout<<"35 send file data"<<endl;
-        cout<<"----------------------------------"<<endl;
+    printMenu();
         
 // 打印command:，刷到屏幕
 // 擦干净监视名单，登记键盘、闹钟
@@ -431,7 +386,7 @@ cout << "heartbeat timer started, interval=5s" << endl;
 // cin 读取 cmd 数字，执行业务，回到循环
 // 情况 C：来了系统信号打断 select → EINTR，continue 重新等待。
 
-        cout<<"command:";
+      while(1){  
         cout.flush();//强制把缓冲区内容立刻怼到屏幕上
 
         //等待用户输入或者心跳定时器
@@ -459,7 +414,7 @@ cout << "heartbeat timer started, interval=5s" << endl;
         //用户输入
         if(!FD_ISSET(STDIN_FILENO, &readfds))continue;
 
-        int cmd; cin>>cmd;
+        int cmd;
         if(!(cin >> cmd)){
            cout<<"input error"<<endl;
            cin.clear();
@@ -485,23 +440,9 @@ cout << "heartbeat timer started, interval=5s" << endl;
             string sendData=MessageCodec::encode(js.dump());
             int n=send(fd,sendData.data(),sendData.size(),0);
             cout<<"send bytes="<<n<<endl;
-        }
-        
-        // //添加好友
-        // else if(cmd==ADD_FRIEND_MSG){
-        //     string friendName;
-        //     cout<<"friend:"; cin>>friendName;
-        //     cout<<"friendName=["<<friendName<<"]"<<endl;
 
-        //     string json="{"
-        //     "\"msgid\":"+to_string(ADD_FRIEND_MSG)+","
-        //     "\"username\":\""+username+"\","
-        //     "\"friendname\":\""+friendName+"\""
-        //     "}";
-
-        //     string sendData=MessageCodec::encode(json);
-        //     send(fd,sendData.data(),sendData.size(),0);
-        // }
+            printMenu();
+        }      
 
         //查询好友列表
         else if(cmd==FRIEND_LIST_MSG){
@@ -513,6 +454,8 @@ cout << "heartbeat timer started, interval=5s" << endl;
             string sendData= MessageCodec::encode(json);
 
             send(fd,sendData.data(),sendData.size(),0);
+
+            printMenu();
         }
         
         //删除好友
@@ -528,6 +471,8 @@ cout << "heartbeat timer started, interval=5s" << endl;
 
             string sendData=MessageCodec::encode(json);
             send(fd,sendData.data(),sendData.size(),0);
+
+            printMenu();
         }
 
         //查看加了哪些群
@@ -538,6 +483,8 @@ cout << "heartbeat timer started, interval=5s" << endl;
             "}";
             string sendData=MessageCodec::encode(json);
             send(fd,sendData.data(),sendData.size(),0);
+
+            printMenu();
         }
 
         //发送好友申请
@@ -553,6 +500,8 @@ cout << "heartbeat timer started, interval=5s" << endl;
 
             string sendData=MessageCodec::encode(json);
             send(fd,sendData.data(),sendData.size(),0);
+
+            printMenu();
         }
 
         //查看好友申请
@@ -564,6 +513,8 @@ cout << "heartbeat timer started, interval=5s" << endl;
 
             string sendData=MessageCodec::encode(json);
             send(fd,sendData.data(),sendData.size(),0);
+
+            printMenu();
         }
 
         //处理好友申请(同意/拒绝)
@@ -581,6 +532,8 @@ cout << "heartbeat timer started, interval=5s" << endl;
             "}";
             string sendData=MessageCodec::encode(json);
             send(fd,sendData.data(),sendData.size(),0);
+
+            printMenu();
         }
 
         //创建群
@@ -596,6 +549,8 @@ cout << "heartbeat timer started, interval=5s" << endl;
 
             string sendData=MessageCodec::encode(json);
             send(fd,sendData.data(),sendData.size(),0);
+
+            printMenu();
         }
 
         //加入群
@@ -611,6 +566,8 @@ cout << "heartbeat timer started, interval=5s" << endl;
         
             string sendData=MessageCodec::encode(json);
             send(fd,sendData.data(),sendData.size(),0);
+
+            printMenu();
         }
 
         //群聊发送消息
@@ -632,6 +589,8 @@ cout << "heartbeat timer started, interval=5s" << endl;
 
             string sendData=MessageCodec::encode(json);
             send(fd,sendData.data(),sendData.size(),0);
+
+            printMenu();
         }
 
         //查看群成员
@@ -646,6 +605,8 @@ cout << "heartbeat timer started, interval=5s" << endl;
 
             string sendData=MessageCodec::encode(json);
             send(fd,sendData.data(),sendData.size(),0);
+
+            printMenu();
 
         }
 
@@ -662,6 +623,8 @@ cout << "heartbeat timer started, interval=5s" << endl;
 
             string sendData=MessageCodec::encode(json);
             send(fd,sendData.data(),sendData.size(),0);
+
+            printMenu();
         }
 
 
@@ -674,6 +637,8 @@ cout << "heartbeat timer started, interval=5s" << endl;
 
             string sendData=MessageCodec::encode(json);
             send(fd,sendData.data(),sendData.size(),0);
+
+            printMenu();
         }
 
         
@@ -687,6 +652,8 @@ cout << "heartbeat timer started, interval=5s" << endl;
 
             string sendData=MessageCodec::encode(json);
             send(fd,sendData.data(),sendData.size(),0);
+
+            printMenu();
         }
         
 
@@ -702,6 +669,7 @@ cout << "heartbeat timer started, interval=5s" << endl;
             string sendData=MessageCodec::encode(json);
             send(fd,sendData.data(),sendData.size(),0);
 
+            printMenu();
         }
 
         //查看私聊聊天记录
@@ -716,7 +684,9 @@ cout << "heartbeat timer started, interval=5s" << endl;
 
             string sendData=MessageCodec::encode(js.dump());
             send(fd,sendData.data(),sendData.size(),0);
-}
+
+            printMenu();
+        }
 
         //查看群聊聊天记录
         else if(cmd==GET_GROUP_HISTORY){
@@ -729,7 +699,9 @@ cout << "heartbeat timer started, interval=5s" << endl;
 
             string sendData=MessageCodec::encode(js.dump());
             send(fd,sendData.data(),sendData.size(),0);
-}
+
+            printMenu();
+        }
 
         //踢人
         else if(cmd==KICK_MEMBER_MSG){
@@ -749,7 +721,10 @@ cout << "heartbeat timer started, interval=5s" << endl;
 
             string sendData=MessageCodec::encode(js.dump());
             send(fd,sendData.data(),sendData.size(),0);
-}
+
+            printMenu();
+        
+        }
 
         //添加群管理员
         else if(cmd==ADD_GROUP_ADMIN_MSG){
@@ -768,6 +743,8 @@ cout << "heartbeat timer started, interval=5s" << endl;
 
             string sendData=MessageCodec::encode(js.dump());
             send(fd,sendData.data(),sendData.size(),0);
+
+            printMenu();
 }
 
         //删除群管理员
@@ -787,6 +764,8 @@ cout << "heartbeat timer started, interval=5s" << endl;
 
             string sendData=MessageCodec::encode(js.dump());
             send(fd,sendData.data(),sendData.size(),0);
+
+            printMenu();
 }
 
         //解散群
@@ -802,6 +781,8 @@ cout << "heartbeat timer started, interval=5s" << endl;
 
             string sendData=MessageCodec::encode(js.dump());
             send(fd,sendData.data(),sendData.size(),0);
+
+            printMenu();
 }
 
         //查看群聊申请列表
@@ -817,6 +798,8 @@ cout << "heartbeat timer started, interval=5s" << endl;
 
             string sendData=MessageCodec::encode(js.dump());
             send(fd,sendData.data(),sendData.size(),0);
+
+            printMenu();
 }
 
         //处理群聊申请列表
@@ -840,35 +823,20 @@ cout << "heartbeat timer started, interval=5s" << endl;
 
             string sendData=MessageCodec::encode(js.dump());
             send(fd,sendData.data(),sendData.size(),0);
-}
 
-        //请求发送验证码
-        else if(cmd==SEND_VERIFY_CODE_MSG){
-            string email;
-            cout<<"email:";
-            cin>>email;
-
-            json js;
-            js["msgid"]=SEND_VERIFY_CODE_MSG;
-            js["email"]=email;
-
-            string sendData=MessageCodec::encode(js.dump());
-            send(fd,sendData.data(),sendData.size(),0);
-}
-
-        //心跳检测
-        else if(cmd==HEARTBEAT_MSG){
-            json js;
-            js["msgid"]=HEARTBEAT_MSG;;
-
-            string sendData=MessageCodec::encode(js.dump());
-            send(fd,sendData.data(),sendData.size(),0);
+            printMenu();
 }
 
         //重置密码
         else if(cmd==RESET_PASSWORD_MSG){
             string email,code,password;
             cout<<"your email:";cin>>email;
+            if(!sendVerifyCode(fd, email)){
+                cout << "验证码发送失败" << endl;
+                printMenu();
+                continue;
+            }
+
             cout<<"your verify code:";
             cin.ignore(numeric_limits<streamsize>::max(), '\n');
             cin>>code;
@@ -885,6 +853,8 @@ cout << "heartbeat timer started, interval=5s" << endl;
 
             string sendData=MessageCodec::encode(js.dump());
             send(fd,sendData.data(),sendData.size(),0);
+
+            printMenu();
 }
 
         //屏蔽好友
@@ -900,6 +870,8 @@ cout << "heartbeat timer started, interval=5s" << endl;
 
             string sendData=MessageCodec::encode(js.dump());
             send(fd,sendData.data(),sendData.size(),0);
+
+            printMenu();
 }
 
         //取消屏蔽好友
@@ -914,6 +886,8 @@ cout << "heartbeat timer started, interval=5s" << endl;
 
             string sendData=MessageCodec::encode(js.dump());
             send(fd,sendData.data(),sendData.size(),0);
+
+            printMenu();
 }
 
         //发送文件申请
@@ -960,6 +934,8 @@ cout << "heartbeat timer started, interval=5s" << endl;
             }
             string sendData =MessageCodec::encode(js.dump());
             send(fd,sendData.data(),sendData.size(),0);
+
+            printMenu();
 }
         //接受文件请求
         else if(cmd==FILE_ACCEPT_MSG){
@@ -987,8 +963,7 @@ cout << "heartbeat timer started, interval=5s" << endl;
                 js["toname"]=FileClient::instance().getUsername();
             }
             //群文件
-            else if(file.targetType=="group")
-            {
+            else if(file.targetType=="group"){
                 js["targetType"]="group";
                 js["groupname"]=file.groupname;
             }
@@ -999,9 +974,12 @@ cout << "heartbeat timer started, interval=5s" << endl;
 
             string sendData=MessageCodec::encode(js.dump());
             cout<<"send bytes="<<sendData.size()<<endl;
-            send(fd,sendData.data(),sendData.size(),0);     
-}            
-    }
+            send(fd,sendData.data(),sendData.size(),0);   
+            
+            printMenu();
+        }            
+  
+}
     close(heartbeatTimerFd);
     close(fd);
     return 0;

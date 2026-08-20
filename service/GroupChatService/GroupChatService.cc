@@ -19,7 +19,8 @@ json GroupChatService::groupChat(const json& js,TcpConnection* conn){
         return response;
     }
     string groupName=js["groupname"];
-    string username=js["from"];
+    //string username=js["from"];
+    string username=conn->getUsername();
     string message=js["message"];
     if(groupName.empty()||username.empty()||message.empty()){
         Logger::instance().error( "group chat params empty");

@@ -164,15 +164,30 @@ json GroupService::getGroupMembers(const json& js){
     json response;
     response["msgid"]=GROUP_MEMBER_ACK;
     response["members"]=json::array();
-    if(!js.contains("groupname")){
-        Logger::instance().error(
-        "get group members lack groupname"
-    );
+    if(!js.contains("groupname")||!js.contains("username")){
+        Logger::instance().error("get group members lack groupname");
         response["errno"]=1,response["message"]="lack groupName";
         return response;
     }
     string groupName=js["groupname"];
+    string username = js["username"];
+    if(groupName.empty()||username.empty()){
+        response["errno"] = 1;
+        response["message"]="params cannot empty";
+        return response;
+    }
     GroupModel model;
+    if(!model.groupExist(groupName)){
+        response["errno"] = 1;
+        response["message"] = "group not exist";
+        return response;
+    }
+    if(!model.isMember(groupName, username)){
+        Logger::instance().error(username + " is not member of group " + groupName);
+        response["errno"] = 1;
+        response["message"] = "permission denied";
+        return response;
+    }
     auto members=model.getMembers(groupName);
     for(auto& user:members)  response["members"].push_back(user);
 

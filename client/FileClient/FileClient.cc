@@ -16,8 +16,7 @@
 #include "../../model/FileModel/FileModel.h"
 using json=nlohmann::json;
 using namespace std;
-static const int FILE_BLOCK_SIZE = 1024 * 4;
-
+#define FILE_BLOCK_SIZE 4096
 //发送方->服务器
 void FileClient::sendFile(int fd,int fileid,const string& filename,const std::string& target,const string& targetType,const string& groupname,vector<int> receivedBlocks){
     //拼接完整路径
@@ -45,18 +44,12 @@ void FileClient::sendFile(int fd,int fileid,const string& filename,const std::st
          << receivedBlocks.size()
          << " 个block" << endl;
 
-    if(!receivedBlocks.empty())
-    {
+    if(!receivedBlocks.empty()){
         cout << "已经收到的block：";
-
-        for(int block : receivedBlocks)
-        {
-            cout << block << " ";
-        }
-
+        for(int block : receivedBlocks) cout << block << " ";
+        
         cout << endl;
     }
-
     cout << "============================" << endl;
 
     char buffer[FILE_BLOCK_SIZE];
@@ -64,10 +57,11 @@ void FileClient::sendFile(int fd,int fileid,const string& filename,const std::st
     while(1){//每次读4kb
         file.read(buffer,sizeof(buffer));
         int size=file.gcount();//gcount()：获取本次read实际读到的字节数
+        
+        cout<<"read block:"<<blockId<<" size="<<size<<" eof="<<file.eof()<<" pos="<<file.tellg()<<endl;
         if(size<=0) break;
-
         if(existBlock(blockId,receivedBlocks)){
-            cout<<"skip block:"<<blockId<<endl;
+            cout<<"skip block:"<<blockId<<" current stream pos="<<file.tellg()<<endl;
             blockId++;
             continue;
         }
@@ -89,12 +83,19 @@ void FileClient::sendFile(int fd,int fileid,const string& filename,const std::st
 
         string fileData(buffer, size);
         string sendData =MessageCodec::encodeBinary(FILE_DATA_MSG,js,fileData);
+        cout<<"prepare send block:"<<blockId<<" size="<<size<<endl;
         if(!SocketUtil::sendAll(fd, sendData)){
             Logger::instance().error( "send file block failed");
-            file.close();
+            //file.close();
             return;
         }
         cout << "send block:"<< blockId<< " size="<< size<< endl;
+        // 等待这个 block 的 ACK
+        if(!waitForBlockAck(fileid, blockId)){
+            Logger::instance().error("block ack timeout, stop sending");
+            cout<<"文件发送中断:"<<" block="<<blockId<< endl;
+            return;
+    }
         // 这里只增加一次
         blockId++;
     }
@@ -241,4 +242,30 @@ bool FileClient::existBlock(int blockid,const std::vector<int>& blocks){
         if(b == blockid) return true;
         
     return false;
+}
+bool FileClient::waitForBlockAck(int fileid, int blockid){
+    unique_lock<mutex> lock(ackMutex_);
+    cout << "等待 ACK:"<< " fileid=" << fileid<< " blockid=" << blockid<< endl;
+    // 最多等待30秒
+    bool received = ackCv_.wait_for(lock,chrono::seconds(10),[&](){
+            return receivedAcks_.count({fileid, blockid}) > 0;});
+
+    // 5秒没有收到
+    if(!received){
+        cout << "等待 ACK 超时:"<< " fileid=" << fileid<< " blockid=" << blockid<< endl;
+        return false;
+    }
+    // 收到ACK
+    receivedAcks_.erase({fileid, blockid});
+    cout << "ACK确认:"<< " fileid=" << fileid<< " blockid=" << blockid<< endl;
+
+    return true;
+}
+void FileClient::notifyBlockAck(int fileid,int blockid){
+    {
+        std::lock_guard<std::mutex> lock(ackMutex_);
+        receivedAcks_.insert({fileid,blockid});
+    }
+    ackCv_.notify_all();
+    cout<<"收到ACK:"<<" fileid="<<fileid<<" blockid="<<blockid<<endl;
 }

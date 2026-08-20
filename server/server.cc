@@ -14,8 +14,8 @@ int main(int argc, char* argv[]){
         port = atoi(argv[2]);
     }else{
         // 不传参数，就让用户输入
-        // cout << "server ip: ";
-        // cin >> ip;
+        cout << "server ip: ";
+        cin >> ip;
         cout << "server port: ";
         cin >> port;
     }

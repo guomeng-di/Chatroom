@@ -3,7 +3,7 @@
 #include "../../model/GroupMessageModel/GroupMessageModel.h"
 #include "../../protocol/MsgId.h"
 #include "../../netlib/base/Logger.h"
-
+#include "../../model/FriendModel/FriendModel.h"
 using namespace std;
 HistoryService::HistoryService(){}
 HistoryService::~HistoryService(){}
@@ -19,6 +19,15 @@ json HistoryService::getPrivateHistory(const json& js){
 
     string user1 = js["user1"];
     string user2 = js["user2"];
+
+    //检查好友关系
+    FriendModel friendModel;
+    if(!friendModel.isFriend(user1,user2)){
+        response["errno"] = 1;
+        response["message"] = "not friend";
+        return response;
+    }
+
     PrivateMessageModel model;
     vector<PrivateMessage> messages =model.getMessages(user1,user2);
     response["errno"] = 0;

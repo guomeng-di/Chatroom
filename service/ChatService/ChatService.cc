@@ -23,22 +23,16 @@ json ChatService::chat(const json& js,TcpConnection* conn){
     );
         return response;
     }
-    string from=js["from"];
+    // string from=js["from"];
+    string from=conn->getUsername();
     string to=js["to"];
     //2知道message
     string msg=js["message"];
 
-    //判断屏蔽了没
-    FriendBlockModel blockModel;
-    if(blockModel.isBlocked(to,from)){
-    json response;
-    response["msgid"]=CHAT_ACK;
-    response["errno"]=1;
-    response["message"]="you are blocked";
-    conn->send(response.dump());
-    return response;
+    if(from==to){
+        response["message"]="cannot chat yourself";
+        return response;
 }
-
     //判断是否好友
 FriendModel friendModel;
 if(!friendModel.isFriend(from,to)){
@@ -47,6 +41,15 @@ if(!friendModel.isFriend(from,to)){
     response["msgid"]=CHAT_ACK;
     response["errno"]=1;
     response["message"]="not friend";
+    return response;
+}
+    //判断屏蔽了没
+    FriendBlockModel blockModel;
+    if(blockModel.isBlocked(to,from)){
+    response["msgid"]=CHAT_ACK;
+    response["errno"]=1;
+    response["message"]="you are blocked";
+    //conn->send(response.dump());
     return response;
 }
     //发送信息

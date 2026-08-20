@@ -13,8 +13,5 @@ class FileService{
       static void finishFile(const json& js,TcpConnection* conn);
       static json querySendFileBlock(const json& js,TcpConnection* conn);
       //static json resumeFile(const json& js,TcpConnection* conn);
-      static void fileBlockAck(
-    const json& js,
-    TcpConnection* conn
-);
+      static void fileBlockAck(const json& js,TcpConnection* conn);
     };

@@ -12,7 +12,7 @@ Epoller::Epoller(){
         Logger::instance().error("epoll_create failed");
         exit(1);
     }
-    events_.resize(1024);
+    events_.resize(1024*4);
 }
 Epoller::~Epoller(){
     close(epfd_);

@@ -12,397 +12,172 @@
 #include "../../manager/RedisManager/RedisManager.h"
 #include "../../netlib/base/Logger.h"
 #include "../../netlib/net/TcpConnection/TcpConnection.h"
+#include "../../model/FriendModel/FriendModel.cc"
+#include "../../model/FriendBlockModel/FriendBlockModel.cc"
 
 
 using namespace std;
-json FileService::sendFileRequest(
-    const json& js,
-    TcpConnection* conn)
-{
+json FileService::sendFileRequest(const json& js,TcpConnection* conn){
     cout << "sendFileRequest receive:" << endl;
     cout << js.dump(4) << endl;
-
     json res;
-
     res["msgid"] = SEND_FILE_REQUEST_ACK;
-
-    // =========================
     // 1. 检查基本参数
-    // =========================
-
-    if(!js.contains("fromname") ||
-       !js.contains("targetType") ||
-       !js.contains("filename") ||
-       !js.contains("filesize"))
-    {
-        Logger::instance().error(
-            "send file request lack params"
-        );
-
-        res["errno"] = 1;
-        res["message"] =
-            "send file request lack params";
-
+    if(!js.contains("fromname") ||!js.contains("targetType") ||!js.contains("filename") ||!js.contains("filesize")){
+        Logger::instance().error("send file request lack params");
+        res["errno"] = 1,res["message"] ="send file request lack params";
         return res;
     }
-
-    string fromname = js["fromname"];
+    //string fromname = js["fromname"];
+    string fromname = conn->getUsername();
     string filename = js["filename"];
     ll filesize = js["filesize"];
     string targetType = js["targetType"];
 
     FileModel model;
-
-
-    // =====================================================
     // 2. 用户文件
-    // =====================================================
-
-    if(targetType == "user")
-    {
-        if(!js.contains("toname"))
-        {
-            res["errno"] = 1;
-            res["message"] = "lack toname";
-
+    if(targetType == "user"){
+        if(!js.contains("toname")){
+            res["errno"] = 1,res["message"] = "lack toname";
             return res;
         }
-
         string toname = js["toname"];
-
         int fileid = -1;
 
-        // =================================================
+        FriendModel friendModel;
+
+if(!friendModel.isFriend(fromname,toname))
+{
+    res["errno"]=1;
+    res["message"]="not friend";
+    return res;
+}
+
+FriendBlockModel blockModel;
+
+if(blockModel.isBlocked(toname,fromname))
+{
+    res["errno"]=1;
+    res["message"]="you are blocked";
+    return res;
+}
+
+
         // 2.1 先检查有没有未完成的旧文件
-        // =================================================
-
-        fileid = model.getUnfinishedFileId(
-            fromname,
-            toname,
-            filename
-        );
-
-        if(fileid >= 0)
-        {
-            // =============================================
-            // 已经存在未完成文件
-            // 不再创建新的 file_info
-            // =============================================
-
+        fileid = model.getUnfinishedFileId(fromname,toname,filename);
+        if(fileid >=0){
+            // 已经存在未完成文件,不再创建新的 file_info
             cout << "\n==========发现未完成文件==========" << endl;
-
             cout << "fileid   = " << fileid << endl;
             cout << "fromname = " << fromname << endl;
             cout << "toname   = " << toname << endl;
             cout << "filename = " << filename << endl;
-
             cout << "继续使用旧 fileid" << endl;
-
             cout << "==================================" << endl;
-        }
-        else
-        {
-            // =============================================
+        }else{
             // 没有旧文件，第一次发送
-            // =============================================
-
-            if(!model.saveFileInfo(
-                fromname,
-                toname,
-                "",
-                "user",
-                filename,
-                filesize))
-            {
-                Logger::instance().error(
-                    "save file failed"
-                );
-
-                res["errno"] = 1;
-                res["message"] =
-                    "save file failed";
-
+            if(!model.saveFileInfo(fromname,toname,"","user",filename,filesize)){
+                Logger::instance().error("save file failed");
+                res["errno"] = 1,res["message"] ="save file failed";
                 return res;
             }
-
-            // 获取刚刚创建的 fileid
-            fileid = model.getFileId(
-                fromname,
-                toname,
-                "",
-                "user",
-                filename
-            );
-
-            cout << "new fileid="
-                 << fileid
-                 << endl;
+            //获取刚刚创建的fileid
+            fileid = model.getFileId(fromname,toname,"","user",filename);
+            cout << "new fileid="<< fileid<< endl;
         }
 
-
-        if(fileid < 0)
-        {
-            Logger::instance().error(
-                "get fileid failed"
-            );
-
-            res["errno"] = 1;
-            res["message"] =
-                "get fileid failed";
-
+        //处理fileid
+        if(fileid < 0){
+            Logger::instance().error("get fileid failed");
+            res["errno"] = 1,res["message"] ="get fileid failed";
             return res;
         }
-
-
-        // =================================================
         // 2.2 通知接收方
-        // =================================================
-
-        TcpConnection* target =
-            OnlineUserManager::instance()
-            .getConnection(toname);
-
-
-        if(target)
-        {
+        TcpConnection* target =OnlineUserManager::instance().getConnection(toname);
+        if(target){
             json notify;
+            notify["msgid"]=FILE_REQUEST_NOTIFY;
+            notify["fromname"]=fromname;
+            notify["filename"]=filename;
+            notify["filesize"]=filesize;
+            notify["targetType"]="user";
+            notify["toname"]=toname;
+            notify["fileid"]=fileid;
 
-            notify["msgid"] =
-                FILE_REQUEST_NOTIFY;
-
-            notify["fromname"] =
-                fromname;
-
-            notify["filename"] =
-                filename;
-
-            notify["filesize"] =
-                filesize;
-
-            notify["targetType"] =
-                "user";
-
-            notify["toname"] =
-                toname;
-
-            notify["fileid"] =
-                fileid;
-
-
-            target->send(
-                notify.dump()
-            );
-
-
+            target->send(notify.dump());
+            //告诉发送方
             res["errno"] = 0;
-
-            res["message"] =
-                "send file request success";
-
-            res["fileid"] =
-                fileid;
-
-        }
-        else
-        {
-            // =============================================
+            res["message"] ="send file request success";
+            res["fileid"] =fileid;
+        }else{
             // 接收方离线
-            // =============================================
-
-            Logger::instance().info(
-                "file receiver offline:"
-                + toname
-            );
-
-            if(RedisManager::instance().connect())
-            {
-                if(RedisManager::instance()
-                    .saveOfflineFileRequest(
-                        toname,
-                        js))
-                {
+            Logger::instance().info("file receiver offline:"+ toname);
+            if(RedisManager::instance().connect()){
+                if(RedisManager::instance().saveOfflineFileRequest(toname,js)){
                     res["errno"] = 0;
-
-                    res["message"] =
-                        "acceptor offline!";
+                    res["message"] ="acceptor offline!";
                 }
             }
-
             return res;
         }
-
     }
-
-
-    // =====================================================
     // 3. 群文件
-    // =====================================================
-
-    else if(targetType == "group")
-    {
-        if(!js.contains("groupname"))
-        {
+    else if(targetType == "group"){
+        if(!js.contains("groupname")){
             res["errno"] = 1;
             res["message"] = "lack groupname";
-
             return res;
         }
-
-        string groupname =
-            js["groupname"];
-
+        string groupname =js["groupname"];
 
         GroupModel groupModel;
-
-
-        if(!groupModel.isMember(
-            groupname,
-            fromname))
-        {
+        if(!groupModel.isMember(groupname,fromname)){
             res["errno"] = 1;
-            res["message"] =
-                "not group member";
-
+            res["message"] = "not group member";
             return res;
         }
-
-
-        // =================================================
-        // 群文件目前仍然按照你原来的方式
-        // =================================================
-
-        if(!model.saveFileInfo(
-            fromname,
-            "",
-            groupname,
-            "group",
-            filename,
-            filesize))
-        {
-            Logger::instance().error(
-                "save group file failed"
-            );
-
+        if(!model.saveFileInfo(fromname,"",groupname,"group",filename,filesize)){
+            Logger::instance().error("save group file failed");
             res["errno"] = 1;
-            res["message"] =
-                "save group file failed";
-
+            res["message"] = "save group file failed";
             return res;
         }
-
-
-        int fileid =
-            model.getFileId(
-                fromname,
-                "",
-                groupname,
-                "group",
-                filename
-            );
-
-
-        auto members =
-            groupModel.getMembers(
-                groupname
-            );
-
-
+        int fileid =model.getFileId(fromname,"",groupname,"group",filename);
+        auto members =groupModel.getMembers(groupname);
         // 给每个成员发送文件请求
-
-        for(auto& member : members)
-        {
-            if(member == fromname)
-                continue;
-
-
-            model.saveFileReceiver(
-                fileid,
-                member
-            );
-
+        for(auto& member : members){
+            if(member == fromname)continue;
+            model.saveFileReceiver(fileid,member);
 
             json notify;
+            notify["msgid"] =FILE_REQUEST_NOTIFY;
+            notify["fromname"] =fromname;
+            notify["filename"] =filename;
+            notify["filesize"] =filesize;
+            notify["groupname"] =groupname;
+            notify["targetType"] ="group";
+            notify["fileid"] =fileid;
 
-            notify["msgid"] =
-                FILE_REQUEST_NOTIFY;
-
-            notify["fromname"] =
-                fromname;
-
-            notify["filename"] =
-                filename;
-
-            notify["filesize"] =
-                filesize;
-
-            notify["groupname"] =
-                groupname;
-
-            notify["targetType"] =
-                "group";
-
-            notify["fileid"] =
-                fileid;
-
-
-            TcpConnection* target =
-                OnlineUserManager::instance()
-                .getConnection(member);
-
-
-            if(target)
-            {
-                cout
-                    << "文件! send group file request to "
-                    << member
-                    << endl;
-
-                target->send(
-                    notify.dump()
-                );
-            }
-            else
-            {
-                cout
-                    << "文件! group file receiver offline: "
-                    << member
-                    << endl;
-
-                if(RedisManager::instance().connect())
-                {
-                    RedisManager::instance()
-                        .saveOfflineFileRequest(
-                            member,
-                            notify
-                        );
+            TcpConnection* target =OnlineUserManager::instance().getConnection(member);
+            if(target){
+                cout<< "send group file request to "<< member<< endl;
+                target->send(notify.dump());
+            }else{
+                cout<< "文件! group file receiver offline: "<< member<< endl;
+                if(RedisManager::instance().connect()){
+                    RedisManager::instance().saveOfflineFileRequest(member,notify);
                 }
             }
         }
-
-
         res["errno"] = 0;
-
-        res["message"] =
-            "group file request success";
-
-        res["fileid"] =
-            fileid;
-
+        res["message"] ="group file request success";
+        res["fileid"] =fileid;
         return res;
     }
-
-
-    // =====================================================
     // 4. 未知 targetType
-    // =====================================================
-
-    else
-    {
+    else{
         res["errno"] = 1;
-
-        res["message"] =
-            "unknown target type";
-
+        res["message"] ="unknown target type";
         return res;
     }
     return res;
@@ -417,7 +192,8 @@ json FileService::acceptFile(const json& js,TcpConnection* conn){
         return res;
     }
     
-    string sender=js["fromname"];//源文件请求发送者
+    string sender=conn->getUsername();
+    //string sender=js["fromname"];//源文件请求发送者
     string acceptor=conn->getUsername();//我同意你的请求
     string filename=js["filename"];
 
@@ -606,7 +382,8 @@ json FileService::querySendFileBlock(const json& js,TcpConnection* conn){
         return res;
     }
     string filename=js["filename"];
-    string sender=js["sender"];
+    string sender=conn->getUsername();
+    //string sender=js["sender"];
     string receiver=js["receiver"];
     cout << "\n========== query file block ==========" << endl;
     cout << "sender=" << sender << endl;
@@ -670,46 +447,9 @@ json FileService::querySendFileBlock(const json& js,TcpConnection* conn){
     cout << "===================================="<< endl;
     return res;
 }
-// json FileService::resumeFile(const json& js,TcpConnection* conn){
-//     string sender=js["sender"];
-//     string receiver=js["receiver"];
-//     string filename=js["filename"];
-
-//     FileModel model;
-//     int fileid =model.getFileId(sender,receiver,"","user",filename);
-
-//     json res;
-//     if(fileid<0){
-//         res["errno"]=1;
-//         res["message"]="file not found";
-//         return res;
-//     }
-
-//     vector<int> blocks =model.getReceivedBlocks(fileid,receiver);
-
-//     TcpConnection* target =OnlineUserManager::instance().getConnection(sender);
-//     if(!target){
-//         res["errno"]=1;
-//         res["message"]="sender offline";
-//         return res;
-//     }
-
-//     json notify;
-//     notify["msgid"]= FILE_RESUME_NOTIFY;
-//     notify["fileid"]=fileid;
-//     notify["filename"]=filename;
-//     notify["receiver"]=receiver;
-//     notify["blocks"]=blocks;
-//     target->send(notify.dump());
-
-//     res["errno"]=0;
-//     res["message"]="resume request success";
-
-//     return res;
-// }
 
 void FileService::fileBlockAck(const json& js,TcpConnection* conn){
-    if(!js.contains("fileid")||!js.contains("filename")||!js.contains("blockid")||!js.contains("receiver")){
+    if(!js.contains("fileid")||!js.contains("filename")||!js.contains("blockid")||!js.contains("receiver")||!js.contains("fromname")){
         Logger::instance().error("file block ack lack params");
         return;
     }
@@ -717,11 +457,29 @@ void FileService::fileBlockAck(const json& js,TcpConnection* conn){
     string filename =js["filename"];
     int blockid =js["blockid"];
     string receiver =js["receiver"];
+    string sender=conn->getUsername();
+    //string sender = js["fromname"];
     cout << "========== FILE BLOCK ACK =========="<< endl;
     cout << "fileid   = "<< fileid<< endl;
     cout << "filename = "<< filename<< endl;
+    cout << "sender   = "<< sender<< endl;
     cout << "receiver = "<< receiver<< endl;
     cout << "blockid  = "<< blockid<< endl;
+    // FileModel model;
+    // if(!model.saveFileBlock(fileid,filename,receiver,blockid)){
+    //     Logger::instance().error("save file block failed:"+ to_string(blockid));
+    //     return;
+    // }
+    // cout<<"save block success:"<< blockid<< endl;
+    //转发ACK给发送方
+    TcpConnection* senderConn=OnlineUserManager::instance().getConnection(sender);
+    if(!senderConn){
+        Logger::instance().error("sender offline:"+sender);
+        return ;
+    }
+    //string ackData=MessageCodec::encode(js.dump());
+    senderConn->send(js.dump());
+    cout<<"forward ACK to sender:"<<sender<<" block="<<blockid<<endl;
     FileModel model;
     if(!model.saveFileBlock(fileid,filename,receiver,blockid)){
         Logger::instance().error("save file block failed:"+ to_string(blockid));

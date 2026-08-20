@@ -36,7 +36,7 @@ TcpConnection::~TcpConnection(){
 }
 void TcpConnection::handleRead(){
     Logger::instance().info("TcpConnection handleRead called");
-    char buf[1024];
+    char buf[1024*4];
 while(1){
     int n=recv(fd_,buf,sizeof(buf),0);
     if(n>0){

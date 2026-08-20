@@ -100,7 +100,7 @@ json LoginService::login(const json& js,TcpConnection* conn){
     for(auto& file:files){
         json fileInfo=json::parse(file);
         fileInfo["msgid"]=FILE_RESUME_NOTIFY;
-        fileInfo["resume"]=true;
+        //fileInfo["resume"]=true;
         conn->send(fileInfo.dump());
     }
     }else{

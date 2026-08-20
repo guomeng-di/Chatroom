@@ -34,7 +34,7 @@ bool Buffer::hasMessage(){
     //memcpy(去哪里,从哪里复制,复制多少);这里将字符串的长度(前四个字节)复制给len
     //重点：网络序转本机字节序
     uint32_t body_len=ntohl(len);
-     cout << "buffer bodyLen="<< body_len<< " bufferSize="<< size()<< endl;
+    //cout << "buffer bodyLen="<< body_len<< " bufferSize="<< size()<< endl;
 
     //非法长度
     if(body_len>MAX_MESSAGE_SIZE){

@@ -274,11 +274,11 @@ void MessageDispatcher::dispatch(const json& js,TcpConnection* conn){
             conn->send(res.dump());
             break;
         }
-// //35发送文件
-//         case FILE_DATA_MSG:{
-//             FileService::sendFileData(js,conn);
-//             break;
-//         }
+//35发送文件
+        case FILE_DATA_MSG:{
+            FileService::sendFileData(js,conn);
+            break;
+        }
 //36发送完毕
         case FILE_FINISH_MSG:{
             FileService::finishFile(js,conn);
@@ -293,8 +293,8 @@ void MessageDispatcher::dispatch(const json& js,TcpConnection* conn){
         }
 
         case FILE_BLOCK_ACK:{
-    FileService::fileBlockAck(js,conn);
-    break;
+            FileService::fileBlockAck(js,conn);
+            break;
 }
         
 // //38离线后登录,文件

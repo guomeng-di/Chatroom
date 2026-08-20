@@ -24,9 +24,8 @@ class FileManager{
       bool updateBlock(int fileid,int blockid,int size);
       bool checkFinish(int fileid);
       bool exists(int fileid);
-      void resumeReceive(int fileid,const std::string& fromname,const std::string& filename,long long filesize,const std::vector<int>& receivedBlocks
-);
-bool hasBlock(int fileid,int blockid);
+      void resumeReceive(int fileid,const std::string& fromname,const std::string& filename,long long filesize,const std::vector<int>& receivedBlocks);
+      bool hasBlock(int fileid,int blockid);
     private:
       FileManager(){}
       std::map<int,ReceiveFileInfo> files_;

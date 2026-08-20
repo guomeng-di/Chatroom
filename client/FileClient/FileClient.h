@@ -1,6 +1,10 @@
 #pragma once
 #include <string>
 #include <map>
+#include <mutex>
+#include <condition_variable>
+#include <set>
+#include <utility>
 #include <vector>
 #include "../../protocol/MessageCodec/MessageCodec.h"
 #include "../../manager/FileManager/FileManager.h"
@@ -26,9 +30,15 @@ class FileClient{
       void setUsername(const std::string& name);
       std::string getUsername();
       void receiveFile(const FilePacket& packet,int fd);
+      bool waitForBlockAck(int fileid, int blockid);//等待某个文件块的ack
+      void notifyBlockAck(int fileid, int blockid);//收到ack后通知发送线程
+
       private:
       std::string username_;
       std::map<std::string,PendingFile> pendingFiles_;
       private:
       bool existBlock(int blockid,const std::vector<int>& blocks);
+      std::set<std::pair<int,int>> receivedAcks_;
+      std::mutex ackMutex_;
+      std::condition_variable ackCv_;
 };

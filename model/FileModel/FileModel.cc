@@ -231,7 +231,7 @@ vector<string> FileModel::getUnfinishedFiles(const string& username){
 "select fromname,filename,filesize "
 "from file_info "
 "where toname='"+username+"' "
-"and status!=2";
+"and status=1";
     //string sql ="select fromname,filename,filesize ""from file_info ""where toname='"+ username +"' and status!=2";
     MYSQL_RES* res =mysql.query(sql);
     if(res==nullptr){
