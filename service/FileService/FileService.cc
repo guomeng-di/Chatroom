@@ -12,8 +12,8 @@
 #include "../../manager/RedisManager/RedisManager.h"
 #include "../../netlib/base/Logger.h"
 #include "../../netlib/net/TcpConnection/TcpConnection.h"
-#include "../../model/FriendModel/FriendModel.cc"
-#include "../../model/FriendBlockModel/FriendBlockModel.cc"
+#include "../../model/FriendModel/FriendModel.h"
+#include "../../model/FriendBlockModel/FriendBlockModel.h"
 
 
 using namespace std;
