@@ -83,3 +83,27 @@ client
          |--处理CHAT_NOTIFY
          |--处理GROUP_NOTIFY
          |--处理FRIEND_NOTIFY
+
+
+
+
+心跳检测:
+                 client
+                   │
+          ┌────────┴────────┐
+          │                 │
+       主线程             recv线程
+          │                 │
+     select/poll          recv()
+          │                 │
+    ┌─────┴──────┐          │
+    │            │          │
+  stdin       timerfd      │
+    │            │          │
+ 用户命令      5秒到期       │
+    │            │          │
+    │       HEARTBEAT_MSG   │
+    │            │          │
+    └──────┬─────┘          │
+           │                │
+           └──── send() ────┘

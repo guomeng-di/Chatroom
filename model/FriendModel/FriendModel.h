@@ -18,7 +18,6 @@ class FriendModel{
       bool removeFriend(const std::string& user,const std::string& friendName);
       //删除所有好友(注销账号)
       bool removeAllFriends(const std::string& username);
-
     // private:
     //   static std::unordered_map<std::string,std::unordered_set<std::string>> friends_;
 };

@@ -81,7 +81,15 @@ enum MsgId
 
     FILE_DATA_MSG=35,//文件分片二进制
 
-    FILE_FINISH_MSG=36//文件发送完成
+    FILE_FINISH_MSG=36,//文件发送完成
+
+    //QUERY_FILE_BLOCK_MSG=37,//发送方询问,你有哪些block了(用户手动查询)
+
+    QUERY_SEND_FILE_BLOCK_MSG=38,// 发送方准备续传时查询
+
+    FILE_RESUME_SEND=39,
+
+    FILE_BLOCK_ACK=40,//接收方真正写入文件后确认
 };
  
 
@@ -161,7 +169,13 @@ enum ResponseId
 
     FILE_ACCEPT_ACK=1034,
 
-    FILE_FINISH_ACK=1035
+    FILE_FINISH_ACK=1035,
+
+    //QUERY_FILE_BLOCK_ACK=1037,
+
+    QUERY_SEND_FILE_BLOCK_ACK=1038,
+
+    FILE_RESUME_ACCEPT=1039
 
 };
 
@@ -204,7 +218,9 @@ enum NotifyId
 
     FILE_DATA_NOTIFY=2013,
 
-    FILE_FINISH_NOTIFY=2014
+    FILE_FINISH_NOTIFY=2014,
 
+    FILE_RESUME_NOTIFY=2015,
 
+    GROUP_LEAVE_NOTIFY=2016
 };

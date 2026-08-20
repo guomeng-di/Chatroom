@@ -36,7 +36,7 @@ class RedisManager{
 
     //离线文件申请
     //保存离线文件的消息
-    bool saveOfflineFileRequest(std::string& username,const json& js);
+    bool saveOfflineFileRequest(const std::string& username,const json& js);
     //获取离线文件
     std::vector<std::string>getOfflineFile(const std::string& username);
     //删除离线消息

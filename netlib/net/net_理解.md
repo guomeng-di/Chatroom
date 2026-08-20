@@ -99,4 +99,40 @@ handleRead: 客人来了,保安先迎接(accept),再打电话
 是客人坐下后专门负责客人一切的  
 包括:handleRead(),send(),handleClose()  
 
+                 main thread
+
+
+              Main Reactor
+
+                 EventLoop
+
+                    |
+                    |
+                Acceptor
+
+                    |
+              accept client fd
+
+
+                    |
+       ----------------------------
+
+       |             |             |
+
+       v             v             v
+
+
+   Sub Reactor   Sub Reactor   Sub Reactor
+
+    Loop1          Loop2          Loop3
+
+       |             |             |
+
+       |             |             |
+
+ TcpConnection TcpConnection TcpConnection
+
+       |             |             |
+
+    client1      client2       client3
 

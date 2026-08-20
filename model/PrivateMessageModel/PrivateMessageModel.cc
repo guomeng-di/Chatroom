@@ -12,38 +12,28 @@ bool PrivateMessageModel::saveMessage(std::string from,std::string to,std::strin
     MySQLManager mysql;
     if(!mysql.connect()){ 
         Logger::instance().error("save private message mysql connect failed");
-        return 0;}
+        return 0;
+    }
     string sql="insert into private_message(fromname,toname,message) values('"+from+"','"+to+"','"+message+"')";
-    if(mysql.execute(sql))
-{
-    Logger::instance().info(
-        "save private message success"
-    );
-
+    if(mysql.execute(sql)){
+    Logger::instance().info("save private message success");
     return true;
 }
-
-
-Logger::instance().error(
-    "save private message failed"
-);
-
+Logger::instance().error("save private message failed");
 return false;
 }
+
 std::vector<PrivateMessage> PrivateMessageModel::getMessages(const std::string& user1,const std::string& user2){
     vector<PrivateMessage> res;
     MySQLManager mysql;
     if(!mysql.connect()){
-    Logger::instance().error(
-        "get private message mysql connect failed"
-    );
+    Logger::instance().error( "get private message mysql connect failed");
     return res;
 }
     string sql="select fromname,toname,message,createtime "
      "from private_message where (fromname='"+user1+"' and toname='"+user2+"') "
-    "or "
-    "(fromname='"+user2+"' and toname='"+user1+"') "
-    "order by id asc";
+    "or ""(fromname='"+user2+"' and toname='"+user1+"') "
+    +   "order by id asc";
     //查->1句柄
     MYSQL* conn=mysql.getConnection();
     if(conn==nullptr) return res;

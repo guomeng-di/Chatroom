@@ -62,7 +62,7 @@ Logger::instance().info("reset code="+code);
         res["message"]="update password failed";
         return res;
     }
-    Logger::instance().error("update password success");
+    Logger::instance().info("update password success");
     res["errno"]=0;
     res["message"]="update password success";
     return res;

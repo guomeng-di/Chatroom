@@ -1,4 +1,5 @@
 //思考:一个epoll对象需要保存什么
+//fd+对应发生的事件
 //1epoll文件描述符epfd(由epoll_create创建)
 //2添加事件函数addFd(socket加入epoll)
 //3删除事件函数removeFd(关闭客户端)

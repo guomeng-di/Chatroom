@@ -1,45 +1,41 @@
 #include "TcpServer.h"
-
 #include "../Acceptor/Acceptor.h"
 #include "../TcpConnection/TcpConnection.h"
 #include "../EventLoop/EventLoop.h"
+#include "../EventLoopThreadPool/EventLoopThreadPool.h"
 #include "../../base/Logger.h"
 #include <functional>
-
-
 using namespace std;
-TcpServer::TcpServer(EventLoop& loop,const std::string& ip,int port):
-loop_(loop),ip_(ip),port_(port),acceptor_(new Acceptor(loop_,ip_,port_)){
+
+TcpServer::TcpServer(EventLoop& loop,const string& ip,int port):
+loop_(loop),ip_(ip),port_(port),acceptor_(new Acceptor(loop_,ip_,port)),threadPool_(new EventLoopThreadPool(&loop_,4)){
     acceptor_->setNewConnectionCallback(
-        bind(&TcpServer::newConnection, this,std::placeholders::_1)//有一个参数
+        bind(&TcpServer::newConnection,this,placeholders::_1)
     );
-    loop_.setTimerCallback(bind(&TcpServer::checkConnectionTimeout,this));//loop的时间到了就调用我提前写好的函数:checkConnectionTimeout
-    Logger::instance().info("timer callback set");
 }
 TcpServer::~TcpServer(){
-    for(auto& conn:connections_) delete conn.second;
-    connections_.clear();
     delete acceptor_;
+    delete threadPool_;
 }
-void TcpServer::start(){//acceptor拿到client_fd后,执行TcpServer留的回调函数
+void TcpServer::start(){
+    //启动sub reactor线程
+    threadPool_->start();
+    //启动accept
     acceptor_->start();
 }
+
 void TcpServer::newConnection(int client_fd){
-    //cout<<"new client fd="<<client_fd<<endl;
-    Logger::instance().info("new client fd="+ to_string(client_fd));
-    TcpConnection* conn=new TcpConnection(&loop_,client_fd);
-    connections_[client_fd]=conn;
-}
-void TcpServer::checkConnectionTimeout(){
-    Logger::instance().info("check timeout");
-    for(auto it=connections_.begin();it!=connections_.end();){
-        TcpConnection* conn=it->second;
-        Logger::instance().info( "check fd="+to_string(it->first));
-        if(conn->isTimeout()){
-            Logger::instance().error("connection timeout");
-            //conn->handleClose();
-            //it=connections_.erase(it);
-            continue;
-        }else ++it;
-    }
+
+    Logger::instance().info("new client fd=" +to_string(client_fd));
+    //选择sub reactor
+    EventLoop* ioLoop=threadPool_->getNextLoop();
+    //  这里不能直接new TcpConnection
+    //  因为当前线程是main reactor线程
+    //  要把任务交给sub loop执行
+    ioLoop->queueInLoop(
+        [ioLoop,client_fd](){
+            TcpConnection* conn=new TcpConnection(ioLoop,client_fd);
+            ioLoop->addConnection(client_fd,conn);
+        }
+    );
 }

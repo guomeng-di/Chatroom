@@ -274,15 +274,35 @@ void MessageDispatcher::dispatch(const json& js,TcpConnection* conn){
             conn->send(res.dump());
             break;
         }
-//35发送文件
-        case FILE_DATA_MSG:{
-            FileService::sendFileData(js,conn);
-        }
+// //35发送文件
+//         case FILE_DATA_MSG:{
+//             FileService::sendFileData(js,conn);
+//             break;
+//         }
 //36发送完毕
         case FILE_FINISH_MSG:{
             FileService::finishFile(js,conn);
             break;
         }
+//37查询blocks
+        case QUERY_SEND_FILE_BLOCK_MSG:{
+            json res=FileService::querySendFileBlock(js,conn);
+            conn->send(res.dump());
+            cout<<"query file block"<<endl;
+            break;
+        }
+
+        case FILE_BLOCK_ACK:{
+    FileService::fileBlockAck(js,conn);
+    break;
+}
+        
+// //38离线后登录,文件
+//         case FILE_RESUME_SEND:{
+//             json res=FileService::resumeFile(js,conn);
+//             conn->send(res.dump());
+//             break;
+//         }
         
         
         default:

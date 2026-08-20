@@ -26,10 +26,6 @@ bool FriendModel::addFriend(const string& username,const string& friendname){
         return 0;
 }
 bool FriendModel::isFriend(const string& username,const string& friendname){
-    // auto it=friends_.find(user);
-    // if(it==friends_.end()) return 0;
-    // auto& set=it->second;
-    // return set.count(friendName)>0;
     MySQLManager mysql;
     if(!mysql.connect()){ 
         Logger::instance().error("check friend mysql connect failed");

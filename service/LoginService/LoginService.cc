@@ -1,9 +1,9 @@
 #include "LoginService.h"
 #include "../../model/UserModel/UserModel.h"
+#include "../../model/FileModel/FileModel.h"
 #include "../../model/FriendRequestModel/FriendRequestModel.h"
 #include "../../manager/OnlineUserManager/OnlineUserManager.h" 
 #include "../../manager/RedisManager/RedisManager.h" 
-
 #include "../../manager/RedisManager/RedisManager.h" 
 #include "../FriendStatusService/FriendStatusService.h"
 #include "../../netlib/net/TcpConnection/TcpConnection.h"
@@ -87,14 +87,22 @@ json LoginService::login(const json& js,TcpConnection* conn){
         if(RedisManager::instance().connect()){
             vector<string> files =RedisManager::instance().getOfflineFile(username);
             for(auto& file:files){
-                json offlineFile;
-                offlineFile["msgid"]=FILE_REQUEST_NOTIFY;
-                offlineFile["message"]=file;
-                conn->send(offlineFile.dump());
+                json fileInfo=json::parse(file);
+                fileInfo["msgid"]=FILE_REQUEST_NOTIFY;
+                conn->send(fileInfo.dump());
             }
             RedisManager::instance().clearOfflineFiles(username);
         }
 
+        //读取未完成文件
+    FileModel fileModel;
+    vector<string> files =fileModel.getUnfinishedFiles(username);
+    for(auto& file:files){
+        json fileInfo=json::parse(file);
+        fileInfo["msgid"]=FILE_RESUME_NOTIFY;
+        fileInfo["resume"]=true;
+        conn->send(fileInfo.dump());
+    }
     }else{
 
         Logger::instance().error(username+" login failed");

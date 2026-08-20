@@ -1,6 +1,7 @@
 #pragma once
 #include <functional>
 #include <string>
+#include <fcntl.h>
 
 class EventLoop;
 class Channel;
@@ -12,7 +13,7 @@ class Acceptor{
 
       void start();//TcpServer.start()内实际上是调用了Acceptor.start():socket,bind,listen_fd
       void handleRead();//处理Channel传过来的回调函数
-      void setNewConnectionCallback(std::function<void(int)> cb);//保存TcpServer传来的通知函数
+      void setNewConnectionCallback(std::function<void(int)> cb);//把client_fd交给TcpServer
 
     private:
       EventLoop& loop_;

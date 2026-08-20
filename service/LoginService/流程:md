@@ -1,0 +1,126 @@
+流程:
+a重新登录->收到消息.你的文件:fileInfo["msgid"]=FILE_RESUME_NOTIFY;
+        //fileInfo["resume"]=true;
+        conn->send(fileInfo.dump());
+
+        ->recv:
+
+        //离线后重新登录
+        else if(msgid==FILE_RESUME_NOTIFY){
+    cout<<"\n==========未完成文件=========="<<endl;
+
+    string sender=js["fromname"];
+    string filename=js["filename"];
+    long long filesize=js["filesize"];
+
+
+    cout<<"发送者:"<<sender<<endl;
+    cout<<"文件:"<<filename<<endl;
+    cout<<"大小:"<<filesize<<endl;
+
+
+    cout<<"是否继续接收?"<<endl;
+    cout<<"1.继续"<<endl;
+    cout<<"2.放弃"<<endl;
+
+    int choice;
+    cin>>choice;
+
+    if(choice==1){
+        json request;
+
+        request["msgid"]=QUERY_SEND_FILE_BLOCK_MSG;
+        request["sender"]=sender;
+        request["filename"]=filename;
+        request["receiver"]=FileClient::instance().getUsername();
+
+
+        string data=MessageCodec::encode(request.dump());
+        send(fd,data.data(),data.size(),0);
+    }
+    cout<<"============================"<<endl;
+}
+
+
+
+同意了,发给service:request["msgid"]=QUERY_SEND_FILE_BLOCK_MSG;
+        request["sender"]=sender;
+        request["filename"]=filename;
+        request["receiver"]=FileClient::instance().getUsername();
+
+        ->service:
+        json FileService::querySendFileBlock(const json& js,TcpConnection* conn){
+    json res;
+    res["msgid"]=FILE_RESUME_ACCEPT;
+    if(!js.contains("filename") ||!js.contains("sender") ||!js.contains("receiver")){
+        Logger::instance().error("finish file lack params");
+        res["errno"]=1;
+        res["message"]="lack params"; 
+        return res;
+    }
+    string filename=js["filename"];
+    string sender=js["sender"];
+    string receiver=js["receiver"];
+    cout<<"filename="<<filename<<endl;
+    cout<<"receiver="<<receiver<<endl;
+    FileModel model;
+    int fileid=model.getFileId(sender,receiver,"","user",filename);
+    if(fileid<0){
+    res["errno"]=1;
+    res["message"]="file not found";
+    return res;
+}
+    vector<int> blocks=model.getReceivedBlocks(fileid,receiver);
+    TcpConnection* senderConn=OnlineUserManager::instance().getConnection(sender);
+    if(senderConn){
+        json notify;
+        notify["msgid"]=FILE_RESUME_SEND;
+        notify["fileid"]=fileid;
+        notify["filename"]=filename;
+        notify["receiver"]=receiver;
+        notify["blocks"]=blocks;
+
+        senderConn->send(notify.dump());
+    }
+
+    res["errno"]=0;
+    res["message"]="query success";
+    return res;
+}
+json FileService::resumeFile(const json& js,TcpConnection* conn){
+    string sender=js["sender"];
+    string receiver=js["receiver"];
+    string filename=js["filename"];
+
+    FileModel model;
+    int fileid =model.getFileId(sender,receiver,"","user",filename);
+
+    json res;
+    if(fileid<0){
+        res["errno"]=1;
+        res["message"]="file not found";
+        return res;
+    }
+
+    vector<int> blocks =model.getReceivedBlocks(fileid,receiver);
+
+    TcpConnection* target =OnlineUserManager::instance().getConnection(sender);
+    if(!target){
+        res["errno"]=1;
+        res["message"]="sender offline";
+        return res;
+    }
+
+    json notify;
+    notify["msgid"]= FILE_RESUME_NOTIFY;
+    notify["fileid"]=fileid;
+    notify["filename"]=filename;
+    notify["receiver"]=receiver;
+    notify["blocks"]=blocks;
+    target->send(notify.dump());
+
+    res["errno"]=0;
+    res["message"]="resume request success";
+
+    return res;
+}

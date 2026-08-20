@@ -149,7 +149,6 @@ bool RedisManager::setOffline(const string& username){
     }
     if(reply) freeReplyObject(reply);
     return 1;
-
 }
 bool RedisManager::isOnline(const string& username){
     if(redisContext_==nullptr) return 0;
@@ -208,7 +207,7 @@ bool RedisManager::deleteVerifyCode(const string& target){
 }
 
 
-bool RedisManager::saveOfflineFileRequest(string& username,const json& js){
+bool RedisManager::saveOfflineFileRequest(const string& username,const json& js){
     if(redisContext_==nullptr) return 0;
     redisContext* context=(redisContext*) redisContext_;
     string key="offline:file:"+username;

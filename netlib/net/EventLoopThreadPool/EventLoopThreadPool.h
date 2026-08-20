@@ -1,0 +1,27 @@
+//线程池
+#pragma once
+#include <vector>
+#include <memory>
+
+class EventLoop;
+class EventLoopThread;
+
+class EventLoopThreadPool{
+
+public:
+
+    EventLoopThreadPool(EventLoop* baseLoop,int numThreads);
+    ~EventLoopThreadPool();
+
+    void start();
+
+    EventLoop* getNextLoop();
+
+private:
+    EventLoop* baseLoop_;
+    int numThreads_;
+    size_t next_;
+    std::vector<std::unique_ptr<EventLoopThread>> threads_;
+    std::vector<EventLoop*> loops_;
+
+};

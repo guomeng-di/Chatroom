@@ -5,6 +5,8 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <unistd.h>
+#include <errno.h>
+#include <fcntl.h>
 #include <cstdio>
 #include <cstdlib>
 #include <iostream>
@@ -22,16 +24,20 @@ void Acceptor::start(){
     //1socket
     listen_fd_=socket(AF_INET,SOCK_STREAM,0);
     if(listen_fd_<0){
-        //perror("socket create failed");
-        Logger::instance().error("socket create failed");
-        exit(-1);
+      Logger::instance().error("socket create failed");
+      exit(-1);
     }
+    //地址复用
+    int opt=1;
+    setsockopt(listen_fd_,SOL_SOCKET,SO_REUSEADDR,&opt,sizeof(opt));
+    //非阻塞
+    int flags=fcntl(listen_fd_,F_GETFL,0);
+    fcntl(listen_fd_,F_SETFL,flags|O_NONBLOCK);
     printf("listen_fd = %d\n", listen_fd_);
     //2bind
     sockaddr_in addr{};
     int n=inet_pton(AF_INET,ip_.c_str(),&addr.sin_addr);//字符串转二进制
     if(n<=0){
-        //perror("inet_pton");
         Logger::instance().error("inet_pton failed");
         return ;
     }
@@ -40,44 +46,53 @@ void Acceptor::start(){
     
     n=bind(listen_fd_,(sockaddr*)&addr,sizeof(addr));
     if(n<0){
-        //perror("bind");
         Logger::instance().error("bind failed");
         return ;
     }
     //3listen
     n=listen(listen_fd_,10);
     if(n<0){
-       //perror("listen");
        Logger::instance().error("listen failed");
         return ;
     }  
 
-    //cout<<"server listen on "<<ip_<<":"<<port_<<endl;
     Logger::instance().info("server listen on "+ip_+":"+to_string(port_));
-    //socket拿到合法fd之后，再创建Channel
-    channel_=new Channel(&loop_,listen_fd_);
     //将listen_fd添加到EventLoop,因为EventLoop直接管理的是Channel
-    //所以先创建Channel
-    //告诉Channel处理函数,补充Channel
-    channel_->setReadCallback(
-        std::bind(&Acceptor::handleRead,this)
-    );
-    //setReadCallback需要传入一个处理函数，这个函数代表当该fd发生EPOLLIN事件时应该执行什么操作。对于listen_fd，这个函数通常是Acceptor::handleRead；对于client_fd，这个函数通常是TcpConnection::handleRead。
-    //通知EventLoop,EventLoop记录Channel
-    channel_->enableReading();  
+
+    //创建卡片(创建Channel),绑定fd和EventLoop
+    channel_=new Channel(&loop_,listen_fd_);
+    //在卡片上记录,回调函数,当满足某个条件时跑这个函数(对listen_fd而言就是client_fd请求连接)
+    //setReadCallback需要传入一个处理函数，这个函数代表当该fd发生EPOLLIN事件时应该执行什么操作。
+    //对于listen_fd，这个函数通常是Acceptor::handleRead；对于client_fd，这个函数通常是TcpConnection::handleRead。
+    channel_->setReadCallback(std::bind(&Acceptor::handleRead,this));//如果事件触发了，就执行
+    
+    //这就是写下了某个条件是什么
+    channel_->enableReading(); //决定了是什么事件
 }
-void Acceptor::handleRead(){//setReadCallback中参数说明了"发生某种事件后，要执行的函数",由该函数产生
+void Acceptor::handleRead(){//setReadCallback中参数说明了"发生某种事件后，要执行的函数"->listen_fd:client_fd请求
+    while(1){
     sockaddr_in addr{};
     socklen_t len=sizeof(addr);
     int client_fd=accept(listen_fd_,(sockaddr*)&addr,&len);
     if(client_fd < 0){
-        //perror("accept");
-        Logger::instance().error("accept failed");
-        return ;    
+        if(errno==EAGAIN ||errno==EWOULDBLOCK){
+        //连接已经全部取完
+        break;
+    }   if(errno==EINTR){
+        //信号中断，继续accept
+        continue;
     }
+        Logger::instance().error("accept failed");
+        break;    
+    }
+    Logger::instance().info("accept new client fd="+to_string(client_fd));
+    //设置client_fd非阻塞
+    int flags = fcntl(client_fd,F_GETFL,0);
+    fcntl(client_fd,F_SETFL,flags | O_NONBLOCK);
+
     //通知TcpServer
     if(newConnectionCallback_)
-         newConnectionCallback_(client_fd);
+         newConnectionCallback_(client_fd);}
 
 }
 void Acceptor::setNewConnectionCallback(std::function<void(int)>cb){

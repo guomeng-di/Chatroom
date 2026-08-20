@@ -8,23 +8,13 @@
 #include "../../protocol/MsgId.h"
 #include "../../netlib/base/Logger.h"
 using namespace std;
-// {
-//             msgid:,
-//             groupName:"cpp",
-//             username:"tom",
-//             message:"hello"
-//         }
-// 在线用户管理器
-
 GroupChatService::GroupChatService(){}
 GroupChatService::~GroupChatService(){}
 json GroupChatService::groupChat(const json& js,TcpConnection* conn){
     json response;
     response["msgid"]=GROUP_CHAT_ACK;
     if(!js.contains("groupname")||!js.contains("from")||!js.contains("message")){
-        Logger::instance().error(
-        "group chat lack params"
-    );
+        Logger::instance().error( "group chat lack params");
         response["errno"]=1,response["message"]="lack params";
         return response;
     }
@@ -32,29 +22,18 @@ json GroupChatService::groupChat(const json& js,TcpConnection* conn){
     string username=js["from"];
     string message=js["message"];
     if(groupName.empty()||username.empty()||message.empty()){
-        Logger::instance().error(
-        "group chat params empty"
-    );
+        Logger::instance().error( "group chat params empty");
         response["errno"]=1,response["message"]="params cannot empty";
         return response;
     }
     GroupModel groupModel;
     if(!groupModel.groupExist(groupName)){
-         Logger::instance().error(
-        username+
-        " send message to group "+
-        groupName+
-        " but group not exist"
-    );
+         Logger::instance().error(username+" send message to group "+ groupName+ " but group not exist");
         response["errno"]=1,response["message"]="group not exist";
         return response;
     }//判断群是否存在
     if(!groupModel.isMember(groupName,username)){
-        Logger::instance().error(
-        username+
-        " is not member of group "+
-        groupName
-    );
+        Logger::instance().error(username+" is not member of group "+groupName);
         response["errno"]=1,response["message"]="not group member";
         return response;
     }//判断发送者是不是群成员
@@ -96,15 +75,7 @@ json GroupChatService::groupChat(const json& js,TcpConnection* conn){
     }
     }
 }
-    Logger::instance().info(
-    username+
-    " send group message group="+
-    groupName+
-    " online="+
-    to_string(sendCount)+
-    " offline="+
-    to_string(offlineCount)
-);
+    Logger::instance().info(username+" send group message group="+groupName+" online="+to_string(sendCount)+" offline="+to_string(offlineCount));
     //回复发送者
     response["errno"]=0;
     response["message"]="group send success";

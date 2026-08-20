@@ -11,18 +11,23 @@ class TcpConnection{
       ~TcpConnection();
 
       void handleRead();//recv()
+      void handleWrite();
       void send(const std::string& msg);//send()
-      void handleClose();//close
+      bool sendBinary(const std::string& msg);//send()二进制文件
+      void handleClose();//划掉前台的记录,去除客户端fd
       void setUsername(const std::string& username);//目的:conn保存:username+fd+msg
       std::string getUsername();
 
       void updateActiveTime();
       bool isTimeout();
+      int fd();
     private:
       int fd_;
       EventLoop* loop_;
       Channel* channel_; 
       Buffer buffer_;
+      Buffer outputBuffer_;//待发送数据
       std::string username_;
       time_t lastActiveTime_;
+      bool connected_;
 };

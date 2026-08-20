@@ -23,6 +23,9 @@ set(NETLIB_SRC
     netlib/net/TcpConnection/TcpConnection.cc
     netlib/net/TcpServer/TcpServer.cc
     netlib/net/Buffer/Buffer.cc
+    netlib/net/EventLoopThread/EventLoopThread.cc
+    netlib/net/EventLoopThreadPool/EventLoopThreadPool.cc
+    netlib/net/TimerFd/TimerFd.cc
 )
 
 # 协议解析
@@ -52,6 +55,7 @@ set(SERVICE_SRC
     service/ResetPasswordService/ResetPasswordService.cc 
     service/FriendBlockService/FriendBlockService.cc 
     service/FileService/FileService.cc
+    netlib/base/SocketUtil/SocketUtil.cc
 
 )
 
@@ -72,7 +76,7 @@ set(MODEL_SRC
 # Redis管理模块
 set(REDIS_SRC
     manager/RedisManager/RedisManager.cc
-    
+
 )
 # 数据库
 set(DATABASE_SRC
@@ -112,15 +116,24 @@ target_link_libraries(server
     hiredis
     mysqlclient
     crypto
+    pthread
 )
 
 # 客户端：仅协议，不含业务与模型
 add_executable(client
     client/client.cc
     netlib/base/Logger.cc
+    utils/MD5/MD5.cc
+    netlib/base/SocketUtil/SocketUtil.cc
+    netlib/net/Buffer/Buffer.cc
     client/ClientMessageHandler/ClientMessageHandler.cc
     client/FileClient/FileClient.cc 
+    manager/FileManager/FileManager.cc
+
     ${PROTOCOL_SRC}
+)
+target_link_libraries(client
+    crypto
 )
 
 add_executable(test_sha256
@@ -143,9 +156,41 @@ target_link_libraries(
     CURL::libcurl
 )
 
-# 测试协议编解码
-# 测试编解码，路径写完整相对路径
-add_executable(test_codec
-    protocol/MessageCodec/test_codec.cc
+
+# ==================== GTest 单元测试 ====================
+
+enable_testing()
+
+find_package(GTest REQUIRED)
+
+add_executable(unit_tests
+
+    test/MessageCodecTest.cc
+    test/BufferTest.cc
+    test/JsonProtocolTest.cc
+    test/SHA256Test.cc
+
     protocol/MessageCodec/MessageCodec.cc
+    netlib/net/Buffer/Buffer.cc
+    protocol/JsonProtocol/JsonProtocol.cc
+    utils/SHA256/SHA256.cc
+
+)
+
+target_include_directories(unit_tests PRIVATE
+    ${PROJECT_SOURCE_DIR}
+)
+
+target_link_libraries(unit_tests
+
+    GTest::gtest
+    GTest::gtest_main
+    pthread
+    crypto
+
+)
+
+add_test(
+    NAME unit_tests
+    COMMAND unit_tests
 )

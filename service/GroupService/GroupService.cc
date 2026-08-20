@@ -119,17 +119,45 @@ json GroupService::leaveGroup(const json& js){
     string groupName=js["groupname"];
     string username=js["username"];
     GroupModel model;
+    //判断用户是不是群成员
+    if(!model.isMember(groupName, username)){
+        response["errno"] = 1;
+        response["message"] = "not group member";
+        return response;
+    }
+    //获取群主
+    string owner = model.getOwner(groupName);
+    //获取管理员
+    unordered_set<string> admins = model.getAdmins(groupName);
+    //删除群成员
     bool flag=model.leaveGroup(groupName,username);
-    if(flag){ 
-         Logger::instance().info(
-        username+" leave group "+groupName+" success"
-    );
-        response["errno"]=0,response["message"]="leave group success";}
-    else{
-        Logger::instance().error(
-        username+" leave group "+groupName+" failed"
-    );
-        response["errno"]=1,response["message"]="leave group fail";}
+    if(!flag){
+        Logger::instance().error(username+" leave group "+groupName +" failed");
+        response["errno"] = 1;
+        response["message"] = "leave group fail";
+        return response;
+    }
+
+    Logger::instance().info(username + " leave group " +groupName + " success");
+    //构造退群通知
+    json notify;
+    notify["msgid"]=GROUP_LEAVE_NOTIFY;
+    notify["groupname"]=groupName;
+    notify["username"]=username;
+    notify["message"]=username +" left group " +groupName;
+    //通知群主
+    TcpConnection* ownerConn =OnlineUserManager::instance().getConnection(owner);
+    if(ownerConn) ownerConn->send(notify.dump());
+    //通知管理员
+    for(const auto& admin:admins){
+        // 防止管理员就是自己
+        if(admin == username) continue;
+        TcpConnection* adminConn = OnlineUserManager::instance().getConnection(admin);
+        if(adminConn) adminConn->send(notify.dump()); 
+    }
+    //返回给主动退群的人
+    response["errno"] = 0;
+    response["message"] = "leave group success";
     return response;
 }
 json GroupService::getGroupMembers(const json& js){

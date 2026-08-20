@@ -11,6 +11,7 @@ class UserModel{
 
       static bool insertUser(const std::string& username,const std::string& password,const std::string& email);//用户插入
       static bool queryUser(const std::string& username,const std::string& password);//用户查询
+      static bool queryUserByUsername(const std::string& username);
       //用户删除(注销账号)
       bool deleteUser(const std::string& username);
       //重置密码

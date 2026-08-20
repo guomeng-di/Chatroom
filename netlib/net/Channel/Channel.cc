@@ -20,27 +20,28 @@ void Channel::setRevents(uint32_t revents){
 }
 void Channel::enableReading(){
     events_|=EPOLLIN;
-    //printf("Channel::enableReading fd=%d, events=%u\n", fd_, events_);
     Logger::instance().info("Channel::enableReading fd="+to_string(fd_)+", events="+to_string(events_));
     loop_->updateChannel(this);
 }
 void Channel::handleEvent(){
-    //  cout<<"Channel handleEvent fd="
-    //     <<fd_
-    //     <<endl;
     Logger::instance().info("Channel handleEvent fd="+to_string(fd_));
-         if(revents_&EPOLLIN){
-        //cout<<"EPOLLIN"<<endl;
-        Logger::instance().info("EPOLLIN");
-
-        if(readCallback_){
-            // cout<<"call readCallback"<<endl;
-            Logger::instance().info("call readCallback");
-            readCallback_();
-        }else{
-            // cout<<"readCallback empty"<<endl;
-            Logger::instance().info("readCallback empty");
+    //如果发生的事件包含可读,就调用注册好的可读事件的回调函数
+    if(revents_ & (EPOLLERR | EPOLLHUP)){//EPOLLERR:socket错误,EPOLLHUP:对端关闭连接
+        Logger::instance().error("EPOLLERR or EPOLLHUP fd="+to_string(fd_));
+        if(closeCallback_) closeCallback_();
+        return;
+    }
+    if(revents_&EPOLLIN){
+            Logger::instance().info("EPOLLIN");
+            if(readCallback_){
+                Logger::instance().info("call readCallback");
+                readCallback_();
+            }else{
+                Logger::instance().info("readCallback empty");
         }
+    }
+    if(revents_ & EPOLLOUT){
+        if(writeCallback_) writeCallback_();
     }
 }
 void Channel::setReadCallback(function<void()> cb){
@@ -51,4 +52,12 @@ void Channel::setWriteCallback(function<void()> cb){
 }
 void Channel::setCloseCallback(function<void()> cb){
     closeCallback_=cb;
+}
+void Channel::enableWriting(){
+    events_ |= EPOLLOUT;
+    loop_->updateChannel(this);
+}
+void Channel::disableWriting(){
+    events_ &= ~EPOLLOUT;
+    loop_->updateChannel(this);
 }

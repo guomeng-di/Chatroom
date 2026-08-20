@@ -95,3 +95,25 @@ string UserModel::queryUsernameByEmail(const string& email){
     mysql_free_result(res);
     return "";
 }
+bool UserModel::queryUserByUsername(const string& username){
+    MySQLManager mysql;
+    if(!mysql.connect()){
+        Logger::instance().error("query user by username mysql connect failed");
+        return false;
+    }
+    string sql ="select username from user where username='" + username + "'";
+    MYSQL_RES* res = mysql.query(sql);
+    if(res == nullptr){
+        Logger::instance().error("query user by username sql failed");
+        return false;
+    }
+    MYSQL_ROW row = mysql_fetch_row(res);
+    if(row){
+        mysql_free_result(res);
+        Logger::instance().info("user exists: " + username);
+        return true;
+    }
+    mysql_free_result(res);
+    Logger::instance().info("user not exist: " + username);
+    return false;
+}
