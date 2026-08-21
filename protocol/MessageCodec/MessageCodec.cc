@@ -27,7 +27,7 @@ string MessageCodec::decode(const string& data){
 // | totalLen(4) | msgid(4) | jsonLen(4) | json | binary |
 string MessageCodec::encodeBinary(int msgid,const json& js,const string& data){
     string jsonStr=js.dump();
-    int jsonLen=jsonStr.size();
+    size_t jsonLen=jsonStr.size();
     int totalLen=4+4+jsonLen+data.size();//4:msgid   data.size():data
     uint32_t msgid_=htonl(msgid),totalLen_=htonl(totalLen),jsonLen_=htonl(jsonLen);
     string result;
@@ -62,7 +62,7 @@ FilePacket MessageCodec::decodeBinary(const string& msg){
     //msgid:
     packet.msgid=ntohl(msgid);
 
-    int jsonLen;
+    size_t jsonLen;
     memcpy(&jsonLen,msg.data()+4,4);//获取json长度
     jsonLen=ntohl(jsonLen);
 

@@ -16,6 +16,7 @@ json RegisterService:: registerUser(const json& js){
     json res;
     res["msgid"]=REGISTER_ACK;
 
+    //1参数检查
     if(!js.contains("username")||!js.contains("password")||!js.contains("email")||!js.contains("code")){
         Logger::instance().error("lack params");
         res["errno"]=1;
@@ -27,7 +28,17 @@ json RegisterService:: registerUser(const json& js){
     string password=js["password"];
     string email=js["email"];
     string inputCode=js["code"];
-    //对比验证码
+
+    //2检查用户名是否已经存在
+    UserModel model;
+    if(model.queryUserByUsername(username)){
+        Logger::instance().error(username+" already exists");
+        res["errno"]=1;
+        res["message"]="register failed,user already exists";
+        return res;
+    }
+
+    //3对比验证码
     if(!RedisManager::instance().connect()){
     Logger::instance().error("redis connect failed");
     res["errno"]=1;
@@ -42,11 +53,10 @@ json RegisterService:: registerUser(const json& js){
         return res;
     }
 
-    //密码加密
+    //4密码加密
     string passwordHash = HashSHA256::encode(password);
     Logger::instance().info("register request username="+username);
-    //2数据库存入(模拟)
-    UserModel model;
+    //5数据库存入(模拟)
     bool flag=model.insertUser(username,passwordHash,email);
     //存入成功
     if(flag){

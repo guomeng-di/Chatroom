@@ -30,7 +30,12 @@ bool FriendModel::isFriend(const string& username,const string& friendname){
     if(!mysql.connect()){ 
         Logger::instance().error("check friend mysql connect failed");
         return 0;}
-    string sql="select friendname from friend where username='"+username+"' and friendname='"+friendname+"'";
+        string sql =
+    "select * from friend where "
+    "(username='"+username+"' and friendname='"+friendname+"') "
+    "or "
+    "(username='"+friendname+"' and friendname='"+username+"')";
+    //string sql="select friendname from friend where username='"+username+"' and friendname='"+friendname+"'";
     //查询需要获得mysql句柄
     MYSQL* conn=mysql.getConnection();
     //查询失败
@@ -87,15 +92,35 @@ bool FriendModel::removeFriend(const std::string& username,const std::string& fr
     Logger::instance().error( "delete friend mysql connect failed");
     return false;
 }
-    //if(!mysql.connect()) return 0;
-    string sql ="delete from friend where ""(username='"+username+"' and friendname='"+friendname+"') "
+    //删除好友关系
+    string sql1 =
+    "delete from friend where "
+    "(username='"+username+"' and friendname='"+friendname+"') "
     "or "
     "(username='"+friendname+"' and friendname='"+username+"')";
-    if(mysql.execute(sql)){
-        if(mysql_affected_rows(mysql.getConnection())>0)
-          return 1;
+
+    if(!mysql.execute(sql1)){
+        Logger::instance().error(
+            "delete friend relation failed"
+        );
+        return false;
     }
-    return 0;
+
+    //删除屏蔽关系
+    string sql2 =
+    "delete from friend_block where "
+    "(username='"+username+"' and blockname='"+friendname+"') "
+    "or "
+    "(username='"+friendname+"' and blockname='"+username+"')";
+
+if(!mysql.execute(sql2)){
+        Logger::instance().error(
+            "delete friend block failed"
+        );
+        //这里不要return false
+        //好友已经删除成功
+    }
+    return 1;
 }
 bool FriendModel::removeAllFriends(const string& username){
     MySQLManager mysql;

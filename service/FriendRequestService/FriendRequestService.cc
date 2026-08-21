@@ -89,6 +89,7 @@ json FriendRequestService::getRequestList(const json& js){
 json FriendRequestService::handleRequest(const json& js){
     json res;
     res["msgid"]=HANDLE_FRIEND_REQUEST_ACK;
+    //1. 参数检查
     if(!js.contains("fromname") ||!js.contains("toname") ||!js.contains("action")){
         res["errno"]=1;
         res["message"]="lack params";
@@ -97,51 +98,86 @@ json FriendRequestService::handleRequest(const json& js){
     string from=js["fromname"];
     string to=js["toname"];
     int action=js["action"];
+
+    //意外情况
+    if(from.empty() || to.empty()){
+        res["errno"]=1;
+        res["message"]="username cannot empty";
+        return res;
+    }
+    if(from==to){
+        res["errno"]=1;
+        res["message"]="cannot handle yourself";
+        return res;
+    }
+    if(action!=0 && action!=1){
+        res["errno"]=1;
+        res["message"]="invalid action";
+        return res;
+    }
+
     FriendRequestModel requestModel;
+    //2. 检查申请是否存在
+    bool exist=false;
+    auto requests=requestModel.getRequests(to);
+    for(auto& request:requests){
+        if(request.from==from){
+            exist=true;
+            break;
+        }
+    }
+    if(!exist){
+        res["errno"]=1;
+        res["message"]="friend request not exist";
+        return res;
+    }
+
     // 同意好友申请
     if(action==1){
         FriendModel friendModel;
-        bool flag=friendModel.addFriend(from,to);
-        if(flag){
-            // 添加好友成功后删除申请
-            requestModel.removeRequest(from,to);
-            // 通知申请人
-            TcpConnection* fromConn=OnlineUserManager::instance().getConnection(from);
-            if(fromConn){
-                json msg;
-                msg["msgid"]=FRIEND_REQUEST_NOTIFY;
-                msg["message"]=to+" accepted your friend request";
-                fromConn->send(msg.dump());
-            }
-            // 通知被申请人
-            TcpConnection* toConn=OnlineUserManager::instance().getConnection(to);
-            if(toConn){
-                json msg;
-                msg["msgid"]=FRIEND_REQUEST_NOTIFY;
-                msg["message"]="you are friends with "+from;
-                toConn->send(msg.dump());
-            }
-            res["errno"]=0;
-            res["message"]=
-                "accept friend success";
-        }else{
-            //requestModel.removeRequest(from,to);
+
+        //再次检查好友关系
+        if(friendModel.isFriend(from,to)||friendModel.isFriend(to,from)){
             res["errno"]=1;
-            res["message"]="accept friend fail";
+            res["message"]="already friends";
+            return res;
         }
-    }else if(action==0){
-        // 拒绝申请
-        bool flag=requestModel.removeRequest(from,to);
-        if(flag){
+        //3. 添加好友
+        if(!friendModel.addFriend(from,to)){
+            res["errno"]=1;
+            res["message"]="add friend failed";
+            return res;
+        }
+        //4. 删除申请
+        if(!requestModel.removeRequest(from,to)){
+            //Logger::instance().error("remove friend request failed");
+        }
+        //5. 通知申请人
+        TcpConnection* fromConn=OnlineUserManager::instance().getConnection(from);
+        if(fromConn){
+            json msg;
+            msg["msgid"]=FRIEND_REQUEST_NOTIFY;
+            msg["message"]=to+" accepted your friend request";
+            fromConn->send(msg.dump());
+        }
+        // //6. 通知被申请人
+        // TcpConnection* toConn=OnlineUserManager::instance().getConnection(to);
+        // if(toConn){
+        //     json msg;
+        //     msg["msgid"]=FRIEND_REQUEST_NOTIFY;
+        //     msg["message"]="you are friends with "+from;
+        //     toConn->send(msg.dump());
+        // }
+        res["errno"]=0;
+        res["message"]="accept friend success";
+    } else{
+        if(requestModel.removeRequest(from,to)){
             res["errno"]=0;
             res["message"]="reject friend success";
         }else{
             res["errno"]=1;
-            res["message"]="reject friend fail";
+            res["message"]="reject friend failed";
         }
-    }else{
-        res["errno"]=1;
-        res["message"]="invalid action";
     }
     return res;
 }

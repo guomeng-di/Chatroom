@@ -1,7 +1,8 @@
 #include "FriendService.h"
 #include "../../model/FriendModel/FriendModel.h"
+#include "../../model/FriendBlockModel/FriendBlockModel.h"
 #include <iostream>
-
+#include "../../model/UserModel/UserModel.h"
 #include "../../protocol/MsgId.h"
 //#include "../../manager/OnlineUserManager/OnlineUserManager.h" 
 #include "../../manager/RedisManager/RedisManager.h" 
@@ -18,6 +19,7 @@ json FriendService::addFriend(const json& js){
     json response;
     response["msgid"]=ADD_FRIEND_ACK;
 
+    //1. 参数检查
     if(!js.contains("username") || !js.contains("friendname")){
         Logger::instance().error("add friend lack params");
         response["errno"]=1;
@@ -26,16 +28,25 @@ json FriendService::addFriend(const json& js){
     }
     string username=js["username"];
     string friendName=js["friendname"];
+
     if(username.empty() || friendName.empty()){
         response["errno"]=1;
         response["message"]="username/friendname cannot empty";
         return response;
     }
+    //2. 不能添加自己
     if(username == friendName){
         response["errno"]=1;
         response["message"]="cannot add yourself";
         return response;
     }
+    //检查好友用户是否存在
+UserModel userModel;
+if(!userModel.queryUserByUsername(friendName)){
+    response["errno"]=1;
+    response["message"]="user not exist";
+    return response;
+}
     FriendModel model;
     //先判断是否已经是好友
     if(model.isFriend(username,friendName)){
@@ -45,6 +56,13 @@ json FriendService::addFriend(const json& js){
         return response;
     }
 
+    //4. 判断好友账号是否存在
+    if(!userModel.queryUserByUsername(friendName)){
+    response["errno"]=1;
+    response["message"]="user not exist";
+    return response;
+}
+    //5. 建立好友关系
     bool flag=model.addFriend(username,friendName);
     if(flag){
         Logger::instance().info(username+" add friend "+friendName+" success");
@@ -93,9 +111,29 @@ json FriendService::deleteFriend(const json& js){
         string user=js["username"];
         string friendName=js["friendname"];
 
-    FriendModel model;
+        if(user==friendName){
+        res["errno"]=1;
+        res["message"]="cannot delete yourself";
+        return res;
+    }
+
+        FriendModel model;
+        if(!model.isFriend(user,friendName)){
+            res["errno"]=1;
+            res["message"]="not friends";
+    return res;
+}
     bool flag=model.removeFriend(user,friendName);
+
+    cout<<"delete friend result="
+    <<flag<<endl;
+
+
     if(flag){
+        //删除好友之后
+    //清理屏蔽关系
+    FriendBlockModel blockModel;
+    blockModel.removeAllBlock(user,friendName);
         Logger::instance().info(user+" delete friend "+friendName+" success");
     res["errno"]=0;
     res["message"]="delete friend success";

@@ -7,19 +7,21 @@
 #include <sys/select.h>
 #include <cstdint>
 #include <algorithm>
-#include <atomic>
 #include <string>
-#include "../netlib/base/Logger.h"
 #include <limits>
+#include "../netlib/base/Logger.h"
 #include "../src/config.h"
 #include "ClientMessageHandler/ClientMessageHandler.h"
 #include "../protocol/MessageCodec/MessageCodec.h"
 #include "../protocol/MsgId.h"
-#include "../manager/RedisManager/RedisManager.h"
-#include "../manager/FileManager/FileManager.h"
-#include <nlohmann/json.hpp>
-#include "FileClient/FileClient.h"
 #include "../netlib/net/Buffer/Buffer.h"
+#include "menu/FriendMenu/FriendMenu.h"
+#include "menu/GroupMenu/GroupMenu.h"
+#include "menu/FileMenu/FileMenu.h"
+#include "menu/AccountMenu/AccountMenu.h"
+#include "FileClient/FileClient.h"
+#include "menu/Color.h"
+#include <nlohmann/json.hpp>
 using namespace std;
 using json=nlohmann::json;
 string username;
@@ -80,7 +82,7 @@ bool login(int fd){
     char buf[1024*4];
     int len=recv(fd,buf,sizeof(buf),0);
     if(len<=0){
-        cout<<"server close"<<endl;
+        cout<<endl<<"server close"<<endl;
         close(fd);
         return 0;
     }
@@ -93,11 +95,11 @@ bool login(int fd){
 
         if(msgid==LOGIN_ACK){
             if(js["errno"]==0){
-                cout<<"login success"<<endl;
+                cout<<endl<<"login success"<<endl;
                 FileClient::instance().setUsername(username);
                 return 1; // buffer中剩余消息(含FILE_RESUME_NOTIFY)由recvMessage处理
             }else{
-                cout<<"login fail"<<endl;
+                cout<<endl<<"login fail"<<endl;
                 return 0;
             }
         }
@@ -201,7 +203,7 @@ bool registerUser(int fd){
     char buf[1024*4];
     int len=recv(fd,buf,sizeof(buf),0);
     if(len<=0){
-        cout<<"server close"<<endl;
+        cout<<endl<<COLOR_RED<<"server close"<<COLOR_RESET<<endl;
         close(fd);
         return 0;
     }
@@ -216,12 +218,13 @@ bool registerUser(int fd){
             cout<<"register success"<<endl;
             return 1;
         }else{
-            cout<<"register fail"<<endl;
+            cout<<endl<<COLOR_RED<<"register fail: "<<js["message"]<<COLOR_RESET<<endl;
             //close(fd);
             return 0;
         }
     }
-    return 1;
+    cout<<endl<<COLOR_RED<<"unknown response"<<COLOR_RESET<<endl;
+    return 0;
 }
 bool ResetPassword(int fd){
     string email,code,password;
@@ -243,62 +246,37 @@ bool ResetPassword(int fd){
     send(fd,data.data(),data.size(),0);
     return 1;
 }
-void printMenu(){
-    cout<<"----------------------------------"<<endl;
-        cout<<"\n1 chat"<<endl;
-        //cout<<"2 add friend"<<endl;
-        cout<<"3 friend list"<<endl;
-        cout<<"4 delete friend"<<endl;
-        cout<<"5 group list"<<endl;
-        cout<<"6 send friend request"<<endl;
-        cout<<"7 view request"<<endl;
-        cout<<"8 accept/reject"<<endl;
-        cout<<"9 create group"<<endl;
-        cout<<"10 apply join group"<<endl;
-        cout<<"11 group chat"<<endl;
-        cout<<"12 group member"<<endl;
-        cout<<"13 leave group"<<endl;
-        //cout<<"14 login"<<endl;
-        //cout<<"15 register"<<endl;
-        cout<<"16 logout"<<endl;
-        cout<<"19 delete account"<<endl;
-        cout<<"20 get private history"<<endl;
-        cout<<"21 get group history"<<endl;
-        cout<<"22 kick member"<<endl;
-        cout<<"23 delete group"<<endl;
-        cout<<"24 add group admin"<<endl;
-        cout<<"25 delete group admin"<<endl;
-        cout<<"26 view group request"<<endl;
-        cout<<"27 handle group request"<<endl;
-        //cout<<"28 send verify code"<<endl;
-        //cout<<"29 heartbeat"<<endl;
-        cout<<"30 reset password"<<endl;
-        cout<<"31 block friend"<<endl;
-        cout<<"32 unblock friend"<<endl;
-        cout<<"33 send file request"<<endl;
-        cout<<"34 accept file request"<<endl;
-        //cout<<"37 query file block"<<endl;
-        //cout<<"35 send file data"<<endl;
-        cout<<"----------------------------------"<<endl;
 
-        cout<<"command:";
+void printMainMenu(){
+cout<<COLOR_CYAN;
+cout<<R"(
 
+==============================
+           ChatRoom
+==============================
+ 1. 好友功能
+ 2. 群聊功能
+ 3. 文件功能
+ 4. 账号设置
+ 0. 退出登录
+==============================
 
-
+)";
+cout<<COLOR_RESET;
 }
 int main(int argc, char* argv[]){
-    string server_ip;
-    int server_port;
+    string server_ip="0.0.0.0";
+    int server_port=8888;
     // 支持：./client IP PORT
     if(argc==3){
         server_ip =argv[1];
         server_port=atoi(argv[2]);
     }else{
-        cout<<"server ip:";
-        cin>>server_ip;
+        // cout<<"server ip:";
+        // cin>>server_ip;
 
-        cout << "server port: ";
-        cin >> server_port;
+        // cout << "server port: ";
+        // cin >> server_port;
     }
     // 1 socket
     int fd = socket(AF_INET, SOCK_STREAM, 0);
@@ -310,10 +288,15 @@ int main(int argc, char* argv[]){
     sockaddr_in server{};
     server.sin_family = AF_INET;
     server.sin_port = htons(server_port);
-    if(inet_pton(AF_INET, server_ip.c_str(), &server.sin_addr) <= 0){
-        perror("inet_pton");
-        return -1;
+    int ret = inet_pton(AF_INET, server_ip.c_str(), &server.sin_addr);
+    if(ret == 0){
+      cout<<endl<<"invalid ip address"<<endl;
+      return -1;
+    }else if(ret < 0){
+      perror("inet_pton");
+      return -1;
     }
+
     if(connect(fd, (sockaddr*)&server, sizeof(server)) < 0){
         perror("connect");
         return -1;
@@ -326,20 +309,48 @@ int main(int argc, char* argv[]){
 while(true){
 
     //用户选择登录/注册->错了一直循环
-    cout<<"=================="<<endl;
-    cout<<"1 login"<<endl;
-    cout<<"2 register"<<endl;
-    cout<<"30 reset password"<<endl;
-    cout<<"=================="<<endl;
-    int choice;cin>>choice;
+cout << COLOR_GREEN;
+cout << R"(
++--------------------------------+
+|                                |
+|             聊天室              |
++--------------------------------+
+|        1. 登录                  |
+|        2. 注册                  |
+|        3. 重置密码               |
+|        0. 退出                  |
++--------------------------------+
+)";
+cout << COLOR_RESET;
+
+    int choice;
+    if(!(cin>>choice)){
+        cin.clear();
+        cin.ignore(numeric_limits<streamsize>::max(),'\n');
+        cout<<endl<<"输入错误，请输入数字"<<endl;
+        continue;
+}
+
     if(choice==1){
         if(login(fd)) break;
     }
     else if(choice==2){
         if(registerUser(fd)&&login(fd)) break;
     }
-    else if(choice==30){
+    else if(choice==3){
         if(ResetPassword(fd)) break;
+    }
+    else if(choice==0){
+        cout<<COLOR_RED;
+        cout<<endl<<"退出客户端"<<endl;
+        cout<<COLOR_RESET;
+
+        break;
+    }else{
+        cout<<COLOR_YELLOW;
+        cout<<endl<<"无效选择，请重新输入"<<endl;
+        cout<<COLOR_RESET;
+        break;
     }
 
 }
@@ -372,7 +383,7 @@ while(true){
 cout << "heartbeat timer started, interval=5s" << endl;
 
     //循环显示目录
-    printMenu();
+    printMainMenu();
         
 // 打印command:，刷到屏幕
 // 擦干净监视名单，登记键盘、闹钟
@@ -414,572 +425,45 @@ cout << "heartbeat timer started, interval=5s" << endl;
         //用户输入
         if(!FD_ISSET(STDIN_FILENO, &readfds))continue;
 
-        int cmd;
-        if(!(cin >> cmd)){
-           cout<<"input error"<<endl;
-           cin.clear();
-           cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
-           continue;
+        int menu;
+        if(!(cin>>menu)){
+            cin.clear();
+            cin.ignore(numeric_limits<streamsize>::max(),'\n');
+            cout<<"输入错误，请输入数字"<<endl;
+            continue;
         }
-        
-        //私聊
-        if(cmd==CHAT_MSG){
-            string to,msg;
-            cout<<"to:";cin>>to;
-            cout<<"message:";
-            //cin.ignore();
-            cin.ignore(numeric_limits<streamsize>::max(), '\n');
-            getline(cin,msg);
-
-            json js;
-            js["msgid"]=CHAT_MSG;
-            js["from"]=username;
-            js["to"]=to;
-            js["message"]=msg;
-
-            string sendData=MessageCodec::encode(js.dump());
-            int n=send(fd,sendData.data(),sendData.size(),0);
-            cout<<"send bytes="<<n<<endl;
-
-            printMenu();
-        }      
-
-        //查询好友列表
-        else if(cmd==FRIEND_LIST_MSG){
-            string json="{"
-            "\"msgid\":"+to_string(FRIEND_LIST_MSG)+","
-            "\"username\":\""+username+"\""
-            "}";
-
-            string sendData= MessageCodec::encode(json);
-
-            send(fd,sendData.data(),sendData.size(),0);
-
-            printMenu();
-        }
-        
-        //删除好友
-        else if(cmd==DELETE_FRIEND_MSG){
-            string friendName;
-            cout<<"delete friend:"; cin>>friendName;
-
-            string json="{"
-            "\"msgid\":"+to_string(DELETE_FRIEND_MSG)+","
-            "\"username\":\""+username+"\","
-            "\"friendname\":\""+friendName+"\""
-            "}";
-
-            string sendData=MessageCodec::encode(json);
-            send(fd,sendData.data(),sendData.size(),0);
-
-            printMenu();
-        }
-
-        //查看加了哪些群
-        else if(cmd==GROUP_LIST_MSG){
-            string json="{"
-            "\"msgid\":"+to_string(GROUP_LIST_MSG)+","
-            "\"username\":\""+username+"\""
-            "}";
-            string sendData=MessageCodec::encode(json);
-            send(fd,sendData.data(),sendData.size(),0);
-
-            printMenu();
-        }
-
-        //发送好友申请
-        else if(cmd==SEND_FRIEND_REQUEST_MSG){
-            string friendName;
-            cout<<"apply friend: "; cin>>friendName;
-
-            string json="{"
-            "\"msgid\":"+to_string(SEND_FRIEND_REQUEST_MSG)+","
-            "\"fromname\":\""+username+"\","
-            "\"toname\":\""+friendName+"\""
-            "}";
-
-            string sendData=MessageCodec::encode(json);
-            send(fd,sendData.data(),sendData.size(),0);
-
-            printMenu();
-        }
-
-        //查看好友申请
-        else if(cmd==GET_FRIEND_REQUEST_MSG){
-            string json="{"
-            "\"msgid\":"+to_string(GET_FRIEND_REQUEST_MSG)+","
-            "\"username\":\""+username+"\""
-            "}";
-
-            string sendData=MessageCodec::encode(json);
-            send(fd,sendData.data(),sendData.size(),0);
-
-            printMenu();
-        }
-
-        //处理好友申请(同意/拒绝)
-        else if(cmd==HANDLE_FRIEND_REQUEST_MSG){
-            string from;
-            int action;
-            cout<<"申请人:";cin>>from;
-            cout<<"1同意 0拒绝:";cin>>action;
-
-            string json="{"
-            "\"msgid\":"+to_string(HANDLE_FRIEND_REQUEST_MSG)+","
-            "\"fromname\":\""+from+"\","
-            "\"toname\":\""+username+"\","
-            "\"action\":"+to_string(action)+
-            "}";
-            string sendData=MessageCodec::encode(json);
-            send(fd,sendData.data(),sendData.size(),0);
-
-            printMenu();
-        }
-
-        //创建群
-        else if(cmd==CREATE_GROUP_MSG){
-            string groupName;
-            cout<<"group name:";cin>>groupName;
-
-            string json="{"
-            "\"msgid\":"+to_string(CREATE_GROUP_MSG)+","
-            "\"username\":\""+username+"\","
-            "\"groupname\":\""+groupName+"\""
-            "}";
-
-            string sendData=MessageCodec::encode(json);
-            send(fd,sendData.data(),sendData.size(),0);
-
-            printMenu();
-        }
-
-        //加入群
-        else if(cmd==JOIN_GROUP_MSG){
-            string groupName;
-            cout<<"group name:";cin>>groupName;
-
-            string json="{"
-            "\"msgid\":"+to_string(JOIN_GROUP_MSG)+","
-            "\"username\":\""+username+"\","
-            "\"groupname\":\""+groupName+"\""
-            "}";
-        
-            string sendData=MessageCodec::encode(json);
-            send(fd,sendData.data(),sendData.size(),0);
-
-            printMenu();
-        }
-
-        //群聊发送消息
-        else if(cmd==GROUP_CHAT_MSG){
-            string groupName,message;
-            cout<<"group:";
-            cin.ignore(numeric_limits<streamsize>::max(), '\n');
-            getline(cin,groupName);
-            cout<<"message:";
-            //cin.ignore(numeric_limits<streamsize>::max(), '\n');
-            getline(cin,message);
-
-            string json="{"
-            "\"msgid\":"+to_string(GROUP_CHAT_MSG)+","
-            "\"groupname\":\""+groupName+"\","
-            "\"from\":\""+username+"\","
-            "\"message\":\""+message+"\""
-            "}";
-
-            string sendData=MessageCodec::encode(json);
-            send(fd,sendData.data(),sendData.size(),0);
-
-            printMenu();
-        }
-
-        //查看群成员
-        else if(cmd==GROUP_MEMBER_MSG){
-            string groupName;
-            cout<<"group:";cin>>groupName;
-
-            string json="{"
-            "\"msgid\":"+to_string(GROUP_MEMBER_MSG)+","
-            "\"groupname\":\""+groupName+"\""
-            "}";
-
-            string sendData=MessageCodec::encode(json);
-            send(fd,sendData.data(),sendData.size(),0);
-
-            printMenu();
-
-        }
-
-        //退出群
-        else if(cmd==LEAVE_GROUP_MSG){
-            string groupName;
-            cout<<"group:";cin>>groupName;
-
-            string json="{"
-            "\"msgid\":"+to_string(LEAVE_GROUP_MSG)+","
-            "\"username\":\""+username+"\","
-            "\"groupname\":\""+groupName+"\""
-            "}";
-
-            string sendData=MessageCodec::encode(json);
-            send(fd,sendData.data(),sendData.size(),0);
-
-            printMenu();
-        }
-
-
-        //查看某人参加的群
-        else if(cmd==GROUP_LIST_MSG){
-            string json="{"
-            "\"msgid\":"+to_string(GROUP_LIST_MSG)+","
-            "\"username\":\""+username+"\""
-            "}";
-
-            string sendData=MessageCodec::encode(json);
-            send(fd,sendData.data(),sendData.size(),0);
-
-            printMenu();
-        }
-
-        
-        
-        //主动退出登录
-        else if(cmd==LOGOUT_MSG){
-            string json="{"
-            "\"msgid\":"+to_string(LOGOUT_MSG)+","
-            "\"username\":\""+username+"\""
-            "}";
-
-            string sendData=MessageCodec::encode(json);
-            send(fd,sendData.data(),sendData.size(),0);
-
-            printMenu();
-        }
-        
-
-        //账号注销
-        else if(cmd==DELETE_ACCOUNT_MSG){
-            string password;
-            cout<<"confirm password:"; cin>>password;
-            string json="{"
-            "\"msgid\":"+to_string(DELETE_ACCOUNT_MSG)+","
-            "\"username\":\""+username+"\","
-            "\"password\":\""+password+"\""
-            "}";
-            string sendData=MessageCodec::encode(json);
-            send(fd,sendData.data(),sendData.size(),0);
-
-            printMenu();
-        }
-
-        //查看私聊聊天记录
-        else if(cmd==GET_PRIVATE_HISTORY){
-            string friendName;
-            cout<<"friend username:";cin>>friendName;
-
-            json js;
-            js["msgid"]=GET_PRIVATE_HISTORY;
-            js["user1"]=username;
-            js["user2"]=friendName;
-
-            string sendData=MessageCodec::encode(js.dump());
-            send(fd,sendData.data(),sendData.size(),0);
-
-            printMenu();
-        }
-
-        //查看群聊聊天记录
-        else if(cmd==GET_GROUP_HISTORY){
-            string groupName;
-            cout<<"group name:";cin>>groupName;
-
-            json js;
-            js["msgid"]=GET_GROUP_HISTORY;
-            js["groupname"]=groupName;
-
-            string sendData=MessageCodec::encode(js.dump());
-            send(fd,sendData.data(),sendData.size(),0);
-
-            printMenu();
-        }
-
-        //踢人
-        else if(cmd==KICK_MEMBER_MSG){
-            string groupName,kick_member;
-            cout<<"group name:";
-            cin>>groupName;
-            cout<<"kick member:";
-            cin.ignore(numeric_limits<streamsize>::max(), '\n');
-
-            getline(cin,kick_member);
-
-            json js;
-            js["msgid"]=KICK_MEMBER_MSG;
-            js["groupname"]=groupName;
-            js["operator"]=username;
-            js["username"]=kick_member;
-
-            string sendData=MessageCodec::encode(js.dump());
-            send(fd,sendData.data(),sendData.size(),0);
-
-            printMenu();
-        
-        }
-
-        //添加群管理员
-        else if(cmd==ADD_GROUP_ADMIN_MSG){
-            string groupName,admin;
-            cout<<"group name:";
-            cin>>groupName;
-            cout<<"set admin:";
-            cin.ignore(numeric_limits<streamsize>::max(), '\n');
-            getline(cin,admin);
-
-            json js;
-            js["msgid"]=ADD_GROUP_ADMIN_MSG;
-            js["groupname"]=groupName;
-            js["operator"]=username;
-            js["username"]=admin;
-
-            string sendData=MessageCodec::encode(js.dump());
-            send(fd,sendData.data(),sendData.size(),0);
-
-            printMenu();
-}
-
-        //删除群管理员
-        else if(cmd==REMOVE_GROUP_ADMIN_MSG){
-            string groupName,admin;
-            cout<<"group name:";
-            cin>>groupName;
-            cout<<"delete admin:";
-            cin.ignore(numeric_limits<streamsize>::max(), '\n');
-            getline(cin,admin);
-
-            json js;
-            js["msgid"]=REMOVE_GROUP_ADMIN_MSG;
-            js["groupname"]=groupName;
-            js["operator"]=username;
-            js["username"]=admin;
-
-            string sendData=MessageCodec::encode(js.dump());
-            send(fd,sendData.data(),sendData.size(),0);
-
-            printMenu();
-}
-
-        //解散群
-        else if(cmd==DELETE_GROUP_MSG){
-            string groupName;
-            cout<<"group name:";
-            cin>>groupName;
-
-            json js;
-            js["msgid"]=DELETE_GROUP_MSG;
-            js["groupname"]=groupName;
-            js["operator"]=username;
-
-            string sendData=MessageCodec::encode(js.dump());
-            send(fd,sendData.data(),sendData.size(),0);
-
-            printMenu();
-}
-
-        //查看群聊申请列表
-        else if(cmd==GET_GROUP_REQUEST_MSG){
-            string groupName;
-            cout<<"group name:";
-            cin>>groupName;
-
-            json js;
-            js["msgid"]=GET_GROUP_REQUEST_MSG;
-            js["groupname"]=groupName;
-            js["operator"]=username;
-
-            string sendData=MessageCodec::encode(js.dump());
-            send(fd,sendData.data(),sendData.size(),0);
-
-            printMenu();
-}
-
-        //处理群聊申请列表
-        else if(cmd==HANDLE_GROUP_REQUEST_MSG){
-            string groupName,handle_user;
-            bool accept;
-            cout<<"group name:";cin>>groupName;
-            cout<<"username:";
-            cin.ignore(numeric_limits<streamsize>::max(), '\n');
-            cin>>handle_user;
-            cout<<"1-accept  0-reject:";
-            cin.ignore(numeric_limits<streamsize>::max(), '\n');
-            cin>>accept;
-
-            json js;
-            js["msgid"]=HANDLE_GROUP_REQUEST_MSG;
-            js["groupname"]=groupName;
-            js["operator"]=username;
-            js["username"]=handle_user;
-            js["accept"]=accept;
-
-            string sendData=MessageCodec::encode(js.dump());
-            send(fd,sendData.data(),sendData.size(),0);
-
-            printMenu();
-}
-
-        //重置密码
-        else if(cmd==RESET_PASSWORD_MSG){
-            string email,code,password;
-            cout<<"your email:";cin>>email;
-            if(!sendVerifyCode(fd, email)){
-                cout << "验证码发送失败" << endl;
-                printMenu();
-                continue;
-            }
-
-            cout<<"your verify code:";
-            cin.ignore(numeric_limits<streamsize>::max(), '\n');
-            cin>>code;
-            cout<<"your new password:";
-            cin.ignore(numeric_limits<streamsize>::max(), '\n');
-            cin>>password;
-
-            json js;
-            js["msgid"]=RESET_PASSWORD_MSG;
-            js["email"]=email;
-            js["code"]=code;
-            js["password"]=password;
-
-
-            string sendData=MessageCodec::encode(js.dump());
-            send(fd,sendData.data(),sendData.size(),0);
-
-            printMenu();
-}
-
-        //屏蔽好友
-        else if(cmd==ADD_BLOCK_MSG){
-            string blockname;
-            cout<<"block name:";
-            cin>>blockname;
-
-            json js;
-            js["msgid"]=ADD_BLOCK_MSG;
-            js["username"]=username;
-            js["blockname"]=blockname;
-
-            string sendData=MessageCodec::encode(js.dump());
-            send(fd,sendData.data(),sendData.size(),0);
-
-            printMenu();
-}
-
-        //取消屏蔽好友
-        else if(cmd==REMOVE_BLOCK_MSG){
-            string unblockname;
-            cout<<"remove block name:";
-            cin>>unblockname;
-            json js;
-            js["msgid"]=REMOVE_BLOCK_MSG;
-            js["username"]=username;
-            js["blockname"]=unblockname;
-
-            string sendData=MessageCodec::encode(js.dump());
-            send(fd,sendData.data(),sendData.size(),0);
-
-            printMenu();
-}
-
-        //发送文件申请
-        else if(cmd==SEND_FILE_REQUEST_MSG){
-            int type;
-            cout<<"1. send to user"<<endl;
-            cout<<"2. send to group"<<endl;
-            cout<<"choose:";
-            cin>>type;
-
-            string target,filename;
-            cout<<"filename:";
-            cin.ignore(numeric_limits<streamsize>::max(), '\n');
-            cin>>filename;
+        switch(menu){
+            case 1:
+            FriendMenu::run(fd,username);
+            break;
             
-            string filepath=FILE_ROOT+filename;
-            ifstream file(filepath,ios::binary);
-            if(!file.is_open()){
-                Logger::instance().error("file not exist");
-                cout<<"file not exist"<<endl;
-                break;
-            }
-            file.seekg(0,ios::end);
-            long long filesize=file.tellg();
-            file.close();
-            json js;
-            js["msgid"]=SEND_FILE_REQUEST_MSG;
-            js["fromname"]=username;
-            js["filename"]=filename;
-            js["filesize"]=filesize;
-            if(type==1){
-                cout<<"username:";
-                cin>>target;
-                js["targetType"]="user";
-                js["toname"]=target;
-            }else if(type==2){
-                cout<<"groupname:";
-                cin>>target;
-                js["targetType"]="group";
-                js["groupname"]=target;
-            }else{
-                cout<<"invalid type"<<endl;
-                break;
-            }
-            string sendData =MessageCodec::encode(js.dump());
-            send(fd,sendData.data(),sendData.size(),0);
+            case 2:
+            GroupMenu::run(fd,username);
+            break;
 
-            printMenu();
+            case 3:
+            FileMenu::run(fd,username);
+            break;
+
+            case 4:
+            AccountMenu::run(fd,username);
+            break;
+            case 0:
+            cout<<COLOR_RED;
+            cout<<endl<<"退出客户端"<<endl;
+            cout<<COLOR_RESET;
+            close(fd);
+            return 0;
+            default:
+            cout<<COLOR_YELLOW;
+            cout<<endl<<"无效选择，请重新输入"<<endl;
+            cout<<COLOR_RESET;
+
 }
-        //接受文件请求
-        else if(cmd==FILE_ACCEPT_MSG){
-            string fromname;
-            cout<<"accept from who:";cin>>fromname;
-            string filename;
-            cout<<"filename:";
-            cin.ignore(numeric_limits<streamsize>::max(), '\n');
-            cin>>filename;
-            PendingFile file=FileClient::instance().getPendingFile(fromname,filename);
-            if(file.filename.empty()){
-                cout<<"file request not found"<<endl;
-                continue;
-            }
-            //FileManager::instance().startReceive(fromname,filename,file.filesize);
-            json js;
-            js["msgid"]=FILE_ACCEPT_MSG;
-            js["fromname"]=fromname;
 
-            //js["toname"]=FileClient::instance().getUsername();
-            js["filename"]=file.filename;
-            //普通好友文件
-            if(file.targetType=="user"){
-                js["targetType"]="user";
-                js["toname"]=FileClient::instance().getUsername();
-            }
-            //群文件
-            else if(file.targetType=="group"){
-                js["targetType"]="group";
-                js["groupname"]=file.groupname;
-            }
-            
-            cout<<"send FILE_ACCEPT_MSG:"<<endl;
-            cout<<js.dump(4)<<endl;
-
-
-            string sendData=MessageCodec::encode(js.dump());
-            cout<<"send bytes="<<sendData.size()<<endl;
-            send(fd,sendData.data(),sendData.size(),0);   
-            
-            printMenu();
-        }            
-  
-}
+        printMainMenu();
+    }
+                 
     close(heartbeatTimerFd);
     close(fd);
     return 0;

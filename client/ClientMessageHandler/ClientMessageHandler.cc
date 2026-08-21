@@ -6,6 +6,7 @@
 #include <filesystem>
 #include "../../manager/FileManager/FileManager.h"
 #include <iostream>
+#include "../menu/Color.h"
 #include <thread>
 using namespace std;
 void ClientMessageHandler::handle(const json& js,int fd){
@@ -14,38 +15,135 @@ void ClientMessageHandler::handle(const json& js,int fd){
         }
         int msgid=js["msgid"];
 
+
         //私聊消息
         if(msgid==CHAT_NOTIFY){
-            cout<<"\n\n==========收到私聊=========="<<endl;
-            cout<<js["from"] <<": "<<js["message"]<<endl;
-            cout<<"============================"<<endl;
+            string from=(string)js["from"];
+            string message=(string)js["message"];
+            cout<<COLOR_CYAN<<from<<COLOR_RESET<<": "<<message<<endl;
         }
-        //私聊历史
-        else if(msgid==GET_PRIVATE_HISTORY_ACK){
-            cout<<"\n\n=========私聊历史消息========"<<endl;
-            if(js["errno"]==0){
-                for(auto& msg:js["messages"])
-                  cout<<msg["time"]<<" "<<msg["from"]<<" : "<<msg["message"]<<endl;
-           }else  cout<<"get private history failed:"<<js["message"]<<endl;
-           cout<<"==============================="<<endl;
+        //私聊发送响应
+        else if(msgid==CHAT_ACK){
+            if(js["errno"]!=0){
+                //失败显示
+            cout<<"\033[31m发送失败:\033[0m "<<js["message"]<<endl;
+            }
         }
-        //群聊历史
-        else if(msgid==GET_GROUP_HISTORY_ACK){
-            cout<<"\n\n=========群聊历史消息========"<<endl;
-            if(js["errno"]==0){
-                for(auto& msg:js["messages"])
-                  cout<<msg["time"]<<" "<<msg["from"]<<" : "<<msg["message"]<<endl;
-           }else  cout<<"get group history failed:"<<js["message"]<<endl;
-           cout<<"==============================="<<endl;
-        }
+
         //群聊消息
         else if(msgid==GROUP_CHAT_NOTIFY){
-            cout<<"\n\n==========收到群消息=========="<<endl;
             cout<<"群:"<<js["groupname"]<<endl;
-            cout<<js["from"]<<": "<<js["message"]<<endl;
-            cout<<"=============================="<<endl;
+            cout<<"\033[34m"<<js["from"]<<"\033[0m"<<": "<<js["message"]<<endl;
+        }else if(msgid==GROUP_CHAT_ACK){
+            if(js["errno"]==0)return;
+             cout<<"群聊失败:"<<js["message"]<<endl;
+            }
+//私聊历史
+else if(msgid==GET_PRIVATE_HISTORY_ACK){
+            cout<<"\n";
+            cout<<COLOR_BLUE;
+            cout<<"+--------------------------------+"<<endl;
+            cout<<"|            私聊历史消息          |"<<endl;
+            cout<<"+--------------------------------+"<<endl;
+            cout<<COLOR_RESET;
+            if(js["errno"]==0){
+                for(auto& msg:js["messages"]){
+                    string from = msg["from"];
+                    string message = msg["message"];
+                    string time = msg["time"];
+                    string username=FileClient::instance().getUsername();
+                    cout<<"["<<time<<"] ";
+                    
+                    //自己发送
+                    if(from == username){
+                        cout<<COLOR_GREEN;
+                        cout<<"我";
+                        cout<<COLOR_RESET;
+                    }
+                    //好友发送
+                    else{
+                        cout<<COLOR_BLUE;
+                        cout<<from;
+                        cout<<COLOR_RESET;
+                    }
+                    cout<<" : ";
+                    cout<<message<<endl;
+                }
+            }else{
+                cout<<COLOR_RED;
+                cout<<"获取私聊历史失败: "<<js["message"]<<endl;
+                cout<<COLOR_RESET;
+            }
+            cout<<COLOR_BLUE;
+            cout<<"+--------------------------------+"<<endl;
+            cout<<COLOR_RESET;
+}       
+//群聊历史
+else if(msgid==GET_GROUP_HISTORY_ACK){
+    cout<<COLOR_BLUE;
+    cout<<"+--------------------------------+"<<endl;
+    cout<<"|          群聊历史消息          |"<<endl;
+    cout<<"+--------------------------------+"<<endl;
+    cout<<COLOR_RESET;
+
+    if(js["errno"]==0){
+        for(auto& msg:js["messages"]){
+
+            string from = msg["from"];
+            string message = msg["message"];
+            string time = msg["time"];
+            string username=FileClient::instance().getUsername();
+            cout<<"["<<time<<"] ";
+
+            if(from==username){
+                cout<<COLOR_GREEN;
+                cout<<"我";
+                cout<<COLOR_RESET;
+            }
+            else{
+                cout<<COLOR_BLUE;
+                cout<<from;
+                cout<<COLOR_RESET;
+            }
+            cout<<": "<<message<<endl;
         }
-        //群列表响应
+    }else{
+        cout<<COLOR_RED;
+        cout<<"获取群聊历史失败: "<<js["message"]<<endl;
+        cout<<COLOR_RESET;
+    }
+    cout<<COLOR_BLUE;
+    cout<<"+--------------------------------+"<<endl;
+    cout<<COLOR_RESET;
+}
+//好友列表
+else if(msgid==FRIEND_LIST_ACK){
+    cout<<"\n\n==========好友列表=========="<<endl;
+    if(js["errno"]==0){
+        for(auto& f:js["friends"]){
+            cout<<"好友: "<<COLOR_BLUE<<f["name"]<<COLOR_RESET;
+            if(f["online"])cout<<"  在线"<<endl;
+            else cout<<"  离线"<<endl;
+        }
+    }else{
+        cout<<"获取好友失败:"<<js["message"]<<endl;
+    }
+    cout<<"============================"<<endl;
+}
+        
+
+
+
+
+
+
+
+
+
+
+
+
+//群列表响应
         else if(msgid==GROUP_LIST_ACK){
             cout<<"\n\n==========我的群聊=========="<<endl;
             if(js["errno"]==0){
@@ -54,6 +152,7 @@ void ClientMessageHandler::handle(const json& js,int fd){
                 }else cout<<"get group list failed:"<<js["message"]<<endl;
             cout<<"============================"<<endl;
         }
+
         //好友申请通知
         else if(msgid==FRIEND_REQUEST_NOTIFY){
             cout<<"\n\n==========好友申请通知=========="<<endl;
@@ -65,18 +164,128 @@ void ClientMessageHandler::handle(const json& js,int fd){
                cout<<js["message"]<<endl;
             cout<<"==============================="<<endl;
         }
+//好友申请处理
+else if(msgid==HANDLE_FRIEND_REQUEST_ACK){
+    cout<<"\n\n==========好友申请处理=========="<<endl;
+
+    if(js["errno"]==0){
+        cout<<COLOR_GREEN<<js["message"]<<COLOR_RESET<<endl;
+    }
+    else{
+        cout<<COLOR_RED<<"失败:"<<js["message"]<<COLOR_RESET<<endl;
+    }
+    cout<<"================================"<<endl;
+}
+//好友申请列表
+else if(msgid==GET_FRIEND_REQUEST_ACK){
+    cout<<COLOR_BLUE;
+    cout<<"\n\n+--------------------------------+\n";
+    cout<<"|            好友申请列表          |\n";
+    cout<<"+--------------------------------+\n";
+    cout<<COLOR_RESET;
+
+    if(js["errno"]==0){
+        if(js["requests"].empty()){
+            cout<<"暂无好友申请"<<endl;
+        }else{
+            for(auto& request:js["requests"]){
+                cout<<COLOR_GREEN;
+                cout<<"申请人: "<<request["fromname"]<<endl;
+                cout<<COLOR_RESET;
+                cout<<"申请时间: "<<request["time"]<<endl;
+                cout<<"--------------------------------"<<endl;
+            }
+        }
+    }else{
+        cout<<COLOR_RED;
+        cout<<"获取好友申请失败: " <<js["message"]<<endl;
+        cout<<COLOR_RESET;
+    }
+    cout<<COLOR_BLUE;
+    cout<<"+--------------------------------+\n";
+    cout<<COLOR_RESET;
+}
+//删除好友响应
+else if(msgid==DELETE_FRIEND_ACK){
+    cout<<COLOR_BLUE;
+    cout<<"\n\n+--------------------------------+\n";
+    cout<<"|            删除好友            |\n";
+    cout<<"+--------------------------------+\n";
+    cout<<COLOR_RESET;
+
+    if(js["errno"]==0){
+        cout<<COLOR_GREEN;
+        cout<<"删除好友成功";
+        cout<<COLOR_RESET<<endl;
+    }else{
+        cout<<COLOR_RED;
+        cout<<"删除好友失败: "<<js["message"];
+        cout<<COLOR_RESET<<endl;
+    }
+    cout<<COLOR_BLUE;
+    cout<<"+--------------------------------+\n";
+    cout<<COLOR_RESET;
+}
         //离线消息
         else if(msgid == OFFLINE_MSG){
             cout<<"\n\n==========离线消息=========="<<endl;
-            cout<<js["message"]<<endl;
+            try{
+                json offline = json::parse((string)js["message"]);
+                string from = offline["from"];
+                string message = offline["message"];
+                cout<<COLOR_GREEN<<from<<COLOR_RESET<<": "<<message<<endl;
+
+                //客户端先发,再出现"我:"
+                cout<<COLOR_GREEN;
+                cout<<"我: ";
+                cout<<COLOR_RESET;
+
+            }catch(exception& e){
+                cout<<endl<<"离线消息解析失败"<<e.what()<<endl;
+            }
             cout<<"============================"<<endl;
-        }
+}
         //群离线消息
         else if(msgid==GROUP_OFFLINE_NOTIFY){
-    cout<<"\n\n==========群离线消息=========="<<endl;
-    cout<<js["message"]<<endl;
-    cout<<"============================"<<endl;
-} 
+            cout<<"\n\n==========群离线消息=========="<<endl;
+            try{
+                json offline = json::parse((string)js["message"]);
+                string from = offline["from"];
+                string message = offline["message"];
+                cout<<COLOR_GREEN<<from<<COLOR_RESET<<": "<<message<<endl;
+
+                //客户端先发,再出现"我:"
+                cout<<COLOR_GREEN;
+                cout<<"我: ";
+                cout<<COLOR_RESET;
+            }catch(exception& e){
+                cout<<endl<<"群离线消息解析失败"<<e.what()<<endl;
+            }
+            cout<<"============================"<<endl;
+}
+//发送好友申请响应
+else if(msgid==SEND_FRIEND_REQUEST_ACK){
+    cout<<"\n\n";
+    cout<<COLOR_BLUE;
+    cout<<"+--------------------------------+\n";
+    cout<<"|            好友申请            |\n";
+    cout<<"+--------------------------------+\n";
+    cout<<COLOR_RESET;
+
+    if(js["errno"]==0){
+        cout<<COLOR_GREEN;
+        cout<<"好友申请发送成功"<<endl;
+        cout<<COLOR_RESET;
+    }else{
+        cout<<COLOR_RED;
+        cout<<"好友申请失败: "<<js["message"].get<string>()<<endl;
+        cout<<COLOR_RESET;
+    }
+    cout<<COLOR_BLUE;
+    cout<<"+--------------------------------+\n";
+    cout<<COLOR_RESET;
+}
+
 
         //在线状态变化
         else if(msgid==FRIEND_STATUS_NOTIFY){
@@ -86,6 +295,7 @@ void ClientMessageHandler::handle(const json& js,int fd){
             else cout<<" 下线"<<endl;
             cout<<"================================"<<endl;
         } 
+
         //踢人
         else if(msgid==KICK_MEMBER_ACK){
             cout<<"\n=================踢人结果=============="<<endl;

@@ -18,6 +18,9 @@ json ChatService::chat(const json& js,TcpConnection* conn){
     json response;
      if(!js.contains("from")||!js.contains("to")||!js.contains("message")){
         //cout<<"chat parameter error"<<endl;
+        response["msgid"]=CHAT_ACK;
+        response["errno"]=1;
+        response["message"]="parameter error";
         Logger::instance().error(
         "chat parameter error"
     );
@@ -30,6 +33,8 @@ json ChatService::chat(const json& js,TcpConnection* conn){
     string msg=js["message"];
 
     if(from==to){
+        response["msgid"]=CHAT_ACK;
+        response["errno"]=1;
         response["message"]="cannot chat yourself";
         return response;
 }
@@ -57,6 +62,7 @@ if(!friendModel.isFriend(from,to)){
         sendMsg["msgid"]=CHAT_NOTIFY;
         sendMsg["from"]=from;
         sendMsg["message"]=msg;
+        sendMsg["to"]=to;
         //先存入mysql
         PrivateMessageModel model;
         if(!model.saveMessage(from,to,msg))

@@ -8,4 +8,5 @@
       bool removeBlock(const std::string& username,const std::string& blockname);
       //判断是否屏蔽
       bool isBlocked(const std::string& username,const std::string& blockname);
+      bool removeAllBlock(const std::string& user1,const std::string& user2);
  };

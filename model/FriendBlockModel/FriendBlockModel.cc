@@ -10,12 +10,7 @@ bool FriendBlockModel::addBlock(const string& username,const string& blockname){
         return 0;
     }
     string sql="insert ignore into friend_block(username,blockname) values('"+username+"','"+blockname+"')";
-    if(mysql.execute(sql)){
-        Logger::instance().info("add block success");
-        return 1;
-    }
-    Logger::instance().error("add block failed");
-    return 0;
+    return mysql.execute(sql);
 }
 bool FriendBlockModel::removeBlock(const string& username,const string& blockname){
     MySQLManager mysql;
@@ -60,4 +55,39 @@ bool FriendBlockModel::isBlocked(const string& username,const string& blockname)
     int rows=mysql_num_rows(result);
     mysql_free_result(result);
     return rows>0;
+}
+bool FriendBlockModel::removeAllBlock(
+    const string& user1,
+    const string& user2
+)
+{
+    MySQLManager mysql;
+
+    if(!mysql.connect())
+    {
+        Logger::instance().error(
+            "remove block mysql connect failed"
+        );
+        return false;
+    }
+
+
+    string sql =
+    "delete from friend_block where "
+    "(username='"+user1+"' and blockname='"+user2+"') "
+    "or "
+    "(username='"+user2+"' and blockname='"+user1+"')";
+
+
+    if(mysql.execute(sql))
+    {
+        Logger::instance().info(
+            user1+" remove block with "+user2
+        );
+
+        return true;
+    }
+
+
+    return false;
 }
