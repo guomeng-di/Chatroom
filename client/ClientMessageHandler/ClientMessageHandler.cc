@@ -549,6 +549,88 @@ else if(msgid==FILE_RESUME_NOTIFY){
             cout << "============================" << endl;
         }
 
+        //退出登录
+else if(msgid==LOGOUT_ACK){
+
+    if(js["errno"]==0){
+
+        cout<<COLOR_GREEN;
+        cout<<"退出登录成功"<<endl;
+        cout<<COLOR_RESET;
+
+    }else{
+
+        cout<<COLOR_RED;
+        cout<<"退出登录失败: "
+            <<js["message"]
+            <<endl;
+        cout<<COLOR_RESET;
+
+    }
+
+}
+//删除好友响应
+else if(msgid==DELETE_FRIEND_ACK){
+
+    if(js["errno"]==0){
+
+        cout<<COLOR_GREEN;
+        cout<<"删除好友成功"<<endl;
+        cout<<COLOR_RESET;
+
+    }else{
+
+        cout<<COLOR_RED;
+        cout<<"删除好友失败: "
+            <<js["message"]
+            <<endl;
+        cout<<COLOR_RESET;
+
+    }
+
+}
+//发送验证码响应
+else if(msgid==SEND_VERIFY_CODE_ACK){
+
+    if(js["errno"]==0){
+
+        cout<<COLOR_GREEN;
+        cout<<"验证码发送成功"<<endl;
+        cout<<COLOR_RESET;
+
+    }else{
+
+        cout<<COLOR_RED;
+        cout<<"验证码发送失败: "
+            <<js["message"]
+            <<endl;
+        cout<<COLOR_RESET;
+
+    }
+
+}
+
+
+//重置密码验证码校验响应
+else if(msgid==RESET_PASSWORD_ACK){
+
+    if(js["errno"]==0){
+
+        cout<<COLOR_GREEN;
+        cout<<"密码修改成功"<<endl;
+        cout<<COLOR_RESET;
+
+    }else{
+
+        cout<<COLOR_RED;
+        cout<<"密码修改失败: "
+            <<js["message"]
+            <<endl;
+        cout<<COLOR_RESET;
+
+    }
+
+}
         //文件重发同意
         else if(msgid==FILE_RESUME_ACCEPT){
             cout<<"\n\n==========请求重发文件=========="<<endl;

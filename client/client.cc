@@ -324,7 +324,7 @@ cout << R"(
 +--------------------------------+
 |        1. 登录(密码)             |
 |        2. 注册                  |
-|        3. 重置密码(验证码登录)   |
+|        3. 重置密码               |
 |        0. 退出                  |
 +--------------------------------+
 )";
@@ -345,7 +345,7 @@ cout << COLOR_RESET;
         if(registerUser(fd)&&login(fd)) break;
     }
     else if(choice==3){
-        if(ResetPassword(fd)) break;
+        ResetPassword(fd);
     }
     else if(choice==0){
         cout<<COLOR_RED;

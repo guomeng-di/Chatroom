@@ -19,8 +19,8 @@ bool AccountMenu::sendVerifyCode(int fd,const string& email){
 }
 void AccountMenu::run(int fd,const string& username){
 while(true){
-cout<<COLOR_RESET;
-cout<<COLOR_RED;
+
+cout<<COLOR_BLUE;
 
 cout<<R"(
 
@@ -52,7 +52,7 @@ if(!(cin>>cmd)){
     cout<<COLOR_RED;
     cout<<endl<<"输入错误，请输入数字"<<endl;
     cout<<COLOR_RESET;
-    continue;
+    break;
 }
 
 if(cmd==0)break;
@@ -81,6 +81,7 @@ else if(cmd==2){
     string data=MessageCodec::encode(js.dump());
     send(fd,data.data(),data.size(),0);
     cout<<"注销请求已发送"<<endl;
+    break;
 }
 //修改密码
 else if(cmd==3){
