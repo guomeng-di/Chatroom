@@ -3,6 +3,7 @@
 #include "../../protocol/MsgId.h"
 #include "../../netlib/net/TcpConnection/TcpConnection.h"
 #include "../../model/GroupModel/GroupModel.h"
+#include "../../model/UserModel/UserModel.h"
 #include "../../manager/OnlineUserManager/OnlineUserManager.h"
 #include "../../model/GroupRequestModel/GroupRequestModel.h"
 using namespace std;
@@ -15,6 +16,7 @@ GroupService::~GroupService(){
 json GroupService::createGroup(const json& js){
     json response;
     response["msgid"]=CREATE_GROUP_ACK;
+    //
     if(!js.contains("username")||!js.contains("groupname")){
         Logger::instance().error(
         "create group lack params"
@@ -22,13 +24,31 @@ json GroupService::createGroup(const json& js){
         response["errno"]=1,response["message"]="lack params";
         return response;
     }
+
     string owner=js["username"];
     string groupName=js["groupname"];
+    //
     if(owner.empty()||groupName.empty()){
         response["errno"]=1,response["message"]="empty";
         return response;
     }
     GroupModel model;
+    //2. 判断创建者是否存在
+    UserModel userModel;
+    if(!userModel.queryUserByUsername(owner)){
+        Logger::instance().error("create group user not exist:"+owner );
+        response["errno"]=1;
+        response["message"]="user not exist";
+        return response;
+    }
+    //3. 判断群是否已经存在
+    if(model.groupExist(groupName)){
+        Logger::instance().error("group already exist:"+groupName );
+        response["errno"]=1;
+        response["message"]="group already exist";
+        return response;
+    }
+    //4. 创建群
     bool flag=model.createGroup(groupName,owner);
     if(flag){
         Logger::instance().info(
@@ -48,35 +68,56 @@ json GroupService::createGroup(const json& js){
 json GroupService::joinGroup(const json& js){
     json response;
     response["msgid"]=JOIN_GROUP_ACK;
+    //
     if(!js.contains("groupname") ||!js.contains("username")){
         response["errno"]=1,response["message"]="lack params";
         return response;
     }
+
     string groupname=js["groupname"];
     string username=js["username"];
-    GroupModel model;
+    //
     if(groupname.empty()||username.empty()){
-    response["errno"]=1;
-    response["message"]="params cannot empty";
-    return response;
-}
+        response["errno"]=1;
+        response["message"]="params cannot empty";
+        return response;
+    }
+
+    GroupModel model;
+    //2. 判断用户是否存在
+    UserModel userModel;
+    if(!userModel.queryUserByUsername(username)){
+        response["errno"]=1;
+        response["message"]="user not exist";
+        return response;
+    }
+
+
+
+    //3. 判断群是否存在
     if(!model.groupExist(groupname)){
-        Logger::instance().error(
-        username+" join group "+groupname+
-        " failed, group not exist"
-    );
+        Logger::instance().error(username+" join group "+groupname+" failed, group not exist");
         response["errno"]=1,response["message"]="group not exist";
         return response;
     }
+    //4. 判断是否已经是成员
     if(model.isMember(groupname,username)){
-        Logger::instance().error(
-        username+" already in group "+groupname
-    );
+        Logger::instance().error(username+" already in group "+groupname);
         response["errno"]=1,response["message"]="already group member";
         return response;
     }
 
     GroupRequestModel requestModel;
+    //5. 判断是否已经申请
+    auto requests=requestModel.getRequests(groupname);
+    for(auto& request:requests){
+        if(request.username==username){
+            response["errno"]=1;
+            response["message"]="already apply";
+            return response;
+        }
+    }
+    //6. 添加申请
     bool flag=requestModel.addRequest(groupname,username);
     if(flag){
         GroupModel model;
@@ -100,7 +141,6 @@ json GroupService::joinGroup(const json& js){
             adminConn->send(notify.dump());
         }
     }
-
         response["errno"]=0;
         response["message"]="apply success";
     }else{
@@ -112,17 +152,38 @@ json GroupService::joinGroup(const json& js){
 json GroupService::leaveGroup(const json& js){
     json response;
     response["msgid"]=LEAVE_GROUP_ACK;
+    //
     if(!js.contains("groupname") ||!js.contains("username")) {
         response["errno"]=1,response["message"]="lack params";
         return response;
     }
+
     string groupName=js["groupname"];
     string username=js["username"];
+    //
+    if(groupName.empty()||username.empty()){
+        response["errno"]=1;
+        response["message"]="params cannot empty";
+        return response;
+    }
     GroupModel model;
+    //2. 判断群存在
+    if(!model.groupExist(groupName)){
+        response["errno"]=1;
+        response["message"]="group not exist";
+        return response;
+    }
+
     //判断用户是不是群成员
     if(!model.isMember(groupName, username)){
         response["errno"] = 1;
         response["message"] = "not group member";
+        return response;
+    }
+    //4. 群主不能退出
+    if(model.isOwner(groupName,username)){
+        response["errno"]=1;
+        response["message"]="owner cannot leave group";
         return response;
     }
     //获取群主
@@ -137,7 +198,6 @@ json GroupService::leaveGroup(const json& js){
         response["message"] = "leave group fail";
         return response;
     }
-
     Logger::instance().info(username + " leave group " +groupName + " success");
     //构造退群通知
     json notify;
@@ -164,30 +224,43 @@ json GroupService::getGroupMembers(const json& js){
     json response;
     response["msgid"]=GROUP_MEMBER_ACK;
     response["members"]=json::array();
-    if(!js.contains("groupname")||!js.contains("username")){
-        Logger::instance().error("get group members lack groupname");
-        response["errno"]=1,response["message"]="lack groupName";
-        return response;
-    }
+    //
+    if(!js.contains("groupname")){
+    response["errno"]=1;
+    response["message"]="lack groupname";
+    return response;
+}
+//
+if(!js.contains("username")){
+    response["errno"]=1;
+    response["message"]="lack username";
+    return response;
+}
+
     string groupName=js["groupname"];
     string username = js["username"];
+    //
     if(groupName.empty()||username.empty()){
         response["errno"] = 1;
         response["message"]="params cannot empty";
         return response;
     }
+
     GroupModel model;
+    //
     if(!model.groupExist(groupName)){
         response["errno"] = 1;
         response["message"] = "group not exist";
         return response;
     }
+    //
     if(!model.isMember(groupName, username)){
         Logger::instance().error(username + " is not member of group " + groupName);
         response["errno"] = 1;
         response["message"] = "permission denied";
         return response;
     }
+    //
     auto members=model.getMembers(groupName);
     for(auto& user:members)  response["members"].push_back(user);
 
@@ -195,25 +268,21 @@ json GroupService::getGroupMembers(const json& js){
     return response;
 }
 json GroupService::getGroupList(const json& js){
-    //cout<<"=====get group list====="<<endl;
     json response;
     response["msgid"]=GROUP_LIST_ACK;
     response["groups"]=json::array();
+    //
     if(!js.contains("username")){
-        Logger::instance().error(
-        "get group list lack username"
-    );
+        Logger::instance().error("get group list lack username");
         response["errno"]=1,response["message"]="lack username";
         return response;
     }
+
     string username=js["username"];
-    // cout<<"username="
-    // <<username
-    // <<endl;
     GroupModel model;
-    //cout<<"before get groups"<<endl;
+
+    //
     auto groups=model.getGroups(username);
-    cout<<"after get groups"<<endl;
     for(auto& group:groups) response["groups"].push_back(group);
 
     response["errno"]=0, response["message"]="get groups success";

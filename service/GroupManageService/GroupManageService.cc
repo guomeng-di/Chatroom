@@ -8,6 +8,7 @@ using namespace std;
 json GroupManageService::kickMember(const json& js){
     json res;
     res["msgid"]=KICK_MEMBER_ACK;
+    //
     if(!js.contains("groupname")||!js.contains("operator")||!js.contains("username")){
         Logger::instance().error("group kick member lack params");
         res["errno"]=1,res["message"]="lack params";
@@ -34,6 +35,12 @@ json GroupManageService::kickMember(const json& js){
         res["message"]="permission denied";
         return res;
     }
+    //3. 判断被踢用户是否在群里
+    if(!groupModel.isMember(groupName,username)){
+        res["errno"]=1;
+        res["message"]="user not in group";
+        return res;
+    }
    //不能踢群主
     if(groupModel.isOwner(groupName,username)){
        res["errno"]=1;
@@ -46,7 +53,7 @@ json GroupManageService::kickMember(const json& js){
        res["message"]="admin cannot kick admin";
        return res;
     }
-
+    //6. 删除成员
     if(groupModel.removeMember(groupName,username)){
       res["errno"]=0;
       res["message"]="kick success";
@@ -59,6 +66,7 @@ json GroupManageService::kickMember(const json& js){
 json GroupManageService::addAdmin(const json& js){
     json res;
     res["msgid"]=ADD_GROUP_ADMIN_ACK;
+    //
     if(!js.contains("groupname")||!js.contains("operator")||!js.contains("username")){
         Logger::instance().error("group add admin lack params");
         res["errno"]=1;
@@ -68,7 +76,22 @@ json GroupManageService::addAdmin(const json& js){
     string operatorName=js["operator"];
     string username=js["username"];
 
+    //
+    if(groupname.empty()||operatorName.empty()||username.empty()){
+
+        res["errno"]=1;
+        res["message"]="params cannot empty";
+        return res;
+    }
+
     GroupModel model;
+    //2. 判断群是否存在
+    if(!model.groupExist(groupname)){
+        res["errno"]=1;
+        res["message"]="group not exist";
+        return res;
+    }
+
     //群主否
     if(!model.isOwner(groupname,operatorName)){
         Logger::instance().error("only owner can add admin");
@@ -83,6 +106,14 @@ json GroupManageService::addAdmin(const json& js){
         res["message"]="user not in group";
         return res;
     }
+    //5. 不能重复添加管理员
+    if(model.isAdmin(groupname,username)){
+
+        res["errno"]=1;
+        res["message"]="already admin";
+        return res;
+    }
+    //6. 添加管理员
     if(model.addAdmin(groupname,username)){
         Logger::instance().info("add admin success");
         res["errno"]=0;
@@ -98,17 +129,52 @@ json GroupManageService::removeAdmin(const json& js){
     json response;
     response["msgid"]=REMOVE_GROUP_ADMIN_ACK;
 
+    //1. 参数检查
+    if(!js.contains("groupname")||!js.contains("operator")||!js.contains("username")){
+        Logger::instance().error("group remove admin lack params");
+        response["errno"]=1;
+        response["message"]="lack params";
+        return response;
+    }
+
     string groupname=js["groupname"];
     string operatorName=js["operator"];
     string username=js["username"];
 
+    if(groupname.empty()||operatorName.empty()||username.empty()){
+        response["errno"]=1;
+        response["message"]="params cannot empty";
+        return response;
+    }
+
     GroupModel model;
+    //2. 判断群是否存在
+    if(!model.groupExist(groupname)){
+        response["errno"]=1;
+        response["message"]="group not exist";
+        return response;
+    }
+    //3. 只有群主可以删除管理员
     if(!model.isOwner(groupname,operatorName)){
         Logger::instance().error("only owner can delete admin");
         response["errno"]=1;
         response["message"]="only owner can delete admin";
         return response;
     }
+    //4. 判断目标是不是管理员
+    if(!model.isAdmin(groupname,username)){
+        response["errno"]=1;
+        response["message"]="user is not admin";
+        return response;
+    }
+    //5. 防止删除群主
+    if(model.isOwner(groupname,username)){
+        response["errno"]=1;
+        response["message"]="cannot remove owner";
+        return response;
+    }
+
+    //6. 删除管理员
     if(model.removeAdmin(groupname,username)){
         Logger::instance().info("delete admin success");
         response["errno"]=0;
@@ -123,17 +189,38 @@ json GroupManageService::removeAdmin(const json& js){
 json GroupManageService::deleteGroup(const json& js){
     json response;
     response["msgid"]=DELETE_GROUP_ACK;
+    //1. 参数检查
+    if(!js.contains("groupname")||!js.contains("operator")){
+        Logger::instance().error("delete group lack params");
+        response["errno"]=1;
+        response["message"]="lack params";
+        return response;
+    }
+
     string groupname=js["groupname"];
     string operatorName=js["operator"];
 
+    if(groupname.empty()||operatorName.empty()){
+        response["errno"]=1;
+        response["message"]="params cannot empty";
+        return response;
+    }
+
     GroupModel model;
+     //2. 判断群是否存在
+    if(!model.groupExist(groupname)){
+        response["errno"]=1;
+        response["message"]="group not exist";
+        return response;
+    }
+    //3. 只有群主可以解散群
     if(!model.isOwner(groupname,operatorName)){
         Logger::instance().info("only owner can delete group");
         response["errno"]=1;
         response["message"]="only owner can delete group";
         return response;
     }
-
+    //4. 删除群
     if(model.deleteGroup(groupname)){
         Logger::instance().info("delete group success");
         response["errno"]=0;

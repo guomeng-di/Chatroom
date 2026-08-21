@@ -13,7 +13,8 @@ GroupChatService::~GroupChatService(){}
 json GroupChatService::groupChat(const json& js,TcpConnection* conn){
     json response;
     response["msgid"]=GROUP_CHAT_ACK;
-    if(!js.contains("groupname")||!js.contains("from")||!js.contains("message")){
+    //
+    if(!js.contains("groupname")||!js.contains("message")){
         Logger::instance().error( "group chat lack params");
         response["errno"]=1,response["message"]="lack params";
         return response;
@@ -22,11 +23,14 @@ json GroupChatService::groupChat(const json& js,TcpConnection* conn){
     //string username=js["from"];
     string username=conn->getUsername();
     string message=js["message"];
+
+    //
     if(groupName.empty()||username.empty()||message.empty()){
         Logger::instance().error( "group chat params empty");
         response["errno"]=1,response["message"]="params cannot empty";
         return response;
     }
+    //
     GroupModel groupModel;
     if(!groupModel.groupExist(groupName)){
          Logger::instance().error(username+" send message to group "+ groupName+ " but group not exist");
@@ -41,8 +45,10 @@ json GroupChatService::groupChat(const json& js,TcpConnection* conn){
 
     // 保存历史消息
     GroupMessageModel messageModel;
-    messageModel.saveMessage(groupName, username, message);
 
+if(!messageModel.saveMessage(groupName,username,message)){
+    Logger::instance().error("save group message failed");
+}
 
     //获取群成员
     unordered_set<string> members=groupModel.getMembers(groupName);

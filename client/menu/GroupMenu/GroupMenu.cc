@@ -107,6 +107,7 @@ else if(cmd==4){
     json js;
     js["msgid"]=GROUP_MEMBER_MSG;
     js["groupname"]=groupName;
+    js["username"]=username;
 
     string data=MessageCodec::encode(js.dump());
     send(fd,data.data(),data.size(),0);

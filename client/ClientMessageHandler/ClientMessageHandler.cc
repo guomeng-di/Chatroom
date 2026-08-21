@@ -22,7 +22,6 @@ void ClientMessageHandler::handle(const json& js,int fd){
             string message=(string)js["message"];
             cout<<COLOR_CYAN<<from<<COLOR_RESET<<": "<<message<<endl;
         }
-        //私聊发送响应
         else if(msgid==CHAT_ACK){
             if(js["errno"]!=0){
                 //失败显示
@@ -31,13 +30,15 @@ void ClientMessageHandler::handle(const json& js,int fd){
         }
 
         //群聊消息
-        else if(msgid==GROUP_CHAT_NOTIFY){
-            cout<<"群:"<<js["groupname"]<<endl;
-            cout<<"\033[34m"<<js["from"]<<"\033[0m"<<": "<<js["message"]<<endl;
-        }else if(msgid==GROUP_CHAT_ACK){
-            if(js["errno"]==0)return;
-             cout<<"群聊失败:"<<js["message"]<<endl;
-            }
+else if(msgid==GROUP_CHAT_NOTIFY){
+    string from=(string)js["from"];
+    string message=(string)js["message"];
+
+    cout<<COLOR_BLUE<<from<<COLOR_RESET<<": "<<message<<endl;
+}else if(msgid==GROUP_CHAT_ACK){
+    if(js["errno"]==0) return;
+    cout<<COLOR_RED<<"群聊失败: "<<js["message"]<<COLOR_RESET<<endl;
+}
 //私聊历史
 else if(msgid==GET_PRIVATE_HISTORY_ACK){
             cout<<"\n";
@@ -131,29 +132,19 @@ else if(msgid==FRIEND_LIST_ACK){
     cout<<"============================"<<endl;
 }
         
-
-
-
-
-
-
-
-
-
-
-
-
 //群列表响应
-        else if(msgid==GROUP_LIST_ACK){
-            cout<<"\n\n==========我的群聊=========="<<endl;
-            if(js["errno"]==0){
-               for(auto& group:js["groups"])
-                   cout<<"group: "<<group<<endl;
-                }else cout<<"get group list failed:"<<js["message"]<<endl;
-            cout<<"============================"<<endl;
+else if(msgid==GROUP_LIST_ACK){
+    cout<<COLOR_YELLOW<<"我的群聊"<<COLOR_RESET<<endl;
+    if(js["errno"]==0){
+        for(auto& group:js["groups"]){
+            cout<<COLOR_GREEN<<group<<COLOR_RESET<<endl;
         }
+    }else{
+        cout<<COLOR_RED <<"获取群列表失败: "<<js["message"]<<COLOR_RESET <<endl;
+    }
+}
 
-        //好友申请通知
+//好友申请
         else if(msgid==FRIEND_REQUEST_NOTIFY){
             cout<<"\n\n==========好友申请通知=========="<<endl;
             if(js.contains("time"))
@@ -164,7 +155,6 @@ else if(msgid==FRIEND_LIST_ACK){
                cout<<js["message"]<<endl;
             cout<<"==============================="<<endl;
         }
-//好友申请处理
 else if(msgid==HANDLE_FRIEND_REQUEST_ACK){
     cout<<"\n\n==========好友申请处理=========="<<endl;
 
@@ -226,7 +216,7 @@ else if(msgid==DELETE_FRIEND_ACK){
     cout<<"+--------------------------------+\n";
     cout<<COLOR_RESET;
 }
-        //离线消息
+//离线消息
         else if(msgid == OFFLINE_MSG){
             cout<<"\n\n==========离线消息=========="<<endl;
             try{
@@ -245,7 +235,7 @@ else if(msgid==DELETE_FRIEND_ACK){
             }
             cout<<"============================"<<endl;
 }
-        //群离线消息
+//群离线消息
         else if(msgid==GROUP_OFFLINE_NOTIFY){
             cout<<"\n\n==========群离线消息=========="<<endl;
             try{
@@ -285,9 +275,7 @@ else if(msgid==SEND_FRIEND_REQUEST_ACK){
     cout<<"+--------------------------------+\n";
     cout<<COLOR_RESET;
 }
-
-
-        //在线状态变化
+//在线状态变化
         else if(msgid==FRIEND_STATUS_NOTIFY){
             cout<<"\n\n==========好友状态变化=========="<<endl;
             cout<<js["username"];
@@ -295,72 +283,94 @@ else if(msgid==SEND_FRIEND_REQUEST_ACK){
             else cout<<" 下线"<<endl;
             cout<<"================================"<<endl;
         } 
-
-        //踢人
-        else if(msgid==KICK_MEMBER_ACK){
-            cout<<"\n=================踢人结果=============="<<endl;
-            cout<<js["message"]<<endl;
-            cout<<"========================================"<<endl;
-        }
-        //添加管理员
-        else if(msgid==ADD_GROUP_ADMIN_ACK){
-            cout<<"\n===============管理员设置==============="<<endl;
-            cout<<js["message"]<<endl;
-            cout<<"========================================"<<endl;
-        }
-        //删除管理员
-        else if(msgid==REMOVE_GROUP_ADMIN_ACK){
-            cout<<"\n============删除管理员============"<<endl;
-            cout<<js["message"]<<endl;
-            cout<<"=================================="<<endl;
-        }
-        //解散群聊
-        else if(msgid==DELETE_GROUP_ACK){
-            cout<<"\n============解散群聊============"<<endl;
-            cout<<js["message"]<<endl;
-            cout<<"================================="<<endl;
-        }
-        //群聊申请
+//踢人
+else if(msgid==KICK_MEMBER_ACK){
+    if(js["errno"]==0){
+        cout<<COLOR_GREEN<<js["message"]<<COLOR_RESET<<endl;
+    }else{
+        cout<<COLOR_RED<<"踢人失败: "<<js["message"]<<COLOR_RESET<<endl;
+    }
+}
+//添加管理员
+else if(msgid==ADD_GROUP_ADMIN_ACK){
+    if(js["errno"]==0){
+        cout<<COLOR_GREEN<<js["message"]<<COLOR_RESET<<endl;
+    }else{
+        cout<<COLOR_RED<<"添加管理员失败: "<<js["message"]<<COLOR_RESET<<endl;
+    }
+}
+//删除管理员
+else if(msgid==REMOVE_GROUP_ADMIN_ACK){
+    if(js["errno"]==0){
+        cout<<COLOR_GREEN<<js["message"]<<COLOR_RESET<<endl;
+    }else{
+        cout<<COLOR_RED<<"删除管理员失败: "<<js["message"]<<COLOR_RESET<<endl;
+    }
+}
+//创建群响应
+else if(msgid==CREATE_GROUP_ACK){
+    if(js["errno"]==0){
+        cout<< COLOR_GREEN<< js["message"]<< COLOR_RESET<< endl;
+    }else{
+        cout<< COLOR_RED<< js["message"]<< COLOR_RESET<< endl;
+    }
+}
+//申请加入群聊响应
+else if(msgid==JOIN_GROUP_ACK){
+    if(js["errno"]==0){
+        cout<< COLOR_GREEN<< js["message"]<< COLOR_RESET<< endl;
+    }else{
+        cout<< COLOR_RED<< js["message"]<< COLOR_RESET<< endl;
+    }
+}
+//解散群聊
+else if(msgid==DELETE_GROUP_ACK){
+    if(js["errno"]==0){
+        cout<<COLOR_GREEN<<js["message"]<<COLOR_RESET<<endl;
+    }else{
+        cout<<COLOR_RED<<"解散群聊失败: "<<js["message"]<<COLOR_RESET<<endl;
+    }
+}
+//群聊申请
         else if(msgid==GROUP_REQUEST_NOTIFY){
             cout<<"\n\n==========群申请通知=========="<<endl;
             cout<<"group: "<<js["groupname"]<<endl;
             cout<<js["message"]<<endl;
             cout<<"==============================="<<endl;
         }
-        //申请加入群聊的人员列表
-        else if(msgid==GET_GROUP_REQUEST_ACK){
-            cout<<"\n\n==========群申请列表=========="<<endl;
-            if(js["errno"]==0){
-               for(auto& request:js["requests"]){
-                   cout<<"username: "<<request["username"]<<endl;
-                   cout<<"time:"<<request["time"]<<endl;
-                   cout<<"-----------------------"<<endl;
-                }
-            }else cout<<"get group list failed:"<<js["message"]<<endl;
-            cout<<"==============================="<<endl;
-        
-        }  
-        //请求验证码
-        else if(msgid==SEND_VERIFY_CODE_ACK){
-             cout<<"\n==========验证码=========="<<endl;
-             cout<<js["message"]<<endl;
-             cout<<"============================"<<endl;
-
+//申请加入群聊的人员列表
+else if(msgid==GET_GROUP_REQUEST_ACK){
+    cout<<COLOR_YELLOW<<"群申请列表"<<COLOR_RESET<<endl;
+    if(js["errno"]==0){
+        for(auto& request:js["requests"]){
+            cout<<COLOR_BLUE<<"username: "<<request["username"]<<COLOR_RESET<<endl;
+            cout<<"time: "<<request["time"]<<endl;
         }
-        //心跳检测
+    }else{
+        cout<<COLOR_RED<<"获取群申请列表失败: "<<js["message"]<<COLOR_RESET<<endl;
+    }
+}
+//心跳检测
         else if(msgid==HEARTBEAT_ACK){
             //  cout<<"\n==========心跳检测=========="<<endl;
             //  cout<<"heartbeat success"<<endl;
             //  cout<<"============================"<<endl;
 
         }
-        //退群成功
-        else if(msgid == GROUP_LEAVE_NOTIFY){
-            cout << "\n==========群成员退出==========" << endl;
-            cout << js["message"] << endl;
-            cout << "==============================" << endl;
+//退群通知
+else if(msgid == GROUP_LEAVE_NOTIFY){
+    cout<<COLOR_BLUE<<js["message"]<<COLOR_RESET<<endl;
+
 }
-        //重置密码
+//退出群响应
+else if(msgid==LEAVE_GROUP_ACK){
+    if(js["errno"]==0){
+        cout<< COLOR_GREEN<< js["message"]<< COLOR_RESET << endl;
+    }else{
+        cout<< COLOR_RED<< js["message"] << COLOR_RESET<< endl;
+    }
+}
+//重置密码
         else if(msgid==RESET_PASSWORD_ACK){
              if(js["errno"]==0){
                 cout<<"\n==========密码设置=========="<<endl;
@@ -372,18 +382,23 @@ else if(msgid==SEND_FRIEND_REQUEST_ACK){
                 cout<<"============================="<<endl;
             }
         }
-        //屏蔽成功
-        else if(msgid==ADD_BLOCK_ACK){
-            cout<<"\n\n==========屏蔽好友=========="<<endl;
-            cout<<js["message"]<<endl;
-            cout<<"============================"<<endl;
-        }
-        //取消屏蔽成功
-        else if(msgid==REMOVE_BLOCK_ACK){
-            cout<<"\n\n==========取消屏蔽=========="<<endl;
-            cout<<js["message"]<<endl;
-            cout<<"============================"<<endl;
-        }
+//屏蔽成功
+else if(msgid==ADD_BLOCK_ACK){
+    if(js["errno"]==0){
+        cout<<COLOR_GREEN<<js["message"]<<COLOR_RESET<<endl;
+    }else{
+        cout<<COLOR_RED <<"屏蔽好友失败: "<<js["message"]<<COLOR_RESET<<endl;
+    }
+}
+
+//取消屏蔽成功
+else if(msgid==REMOVE_BLOCK_ACK){
+    if(js["errno"]==0){
+        cout<<COLOR_GREEN<<js["message"]<<COLOR_RESET<<endl;
+    }else{
+        cout<<COLOR_RED<<"取消屏蔽失败: "<<js["message"]<<COLOR_RESET <<endl;
+    }
+}
         //发送文件申请
         else if(msgid==FILE_REQUEST_NOTIFY){
             cout<<"\n\n==========文件申请=========="<<endl;
@@ -463,38 +478,6 @@ else if(msgid==SEND_FRIEND_REQUEST_ACK){
             if(js.contains("message")) cout<<js["message"]<<endl;
             cout<<"===================="<<endl;
 }
-
-
-//         //离线后重新登录
-//         else if(msgid==FILE_RESUME_NOTIFY){
-//             cout<<"\n==========未完成文件=========="<<endl;
-//             string sender=js["fromname"];
-//             string filename=js["filename"];
-//             long long filesize=js["filesize"];
-
-//             cout<<"发送者:"<<sender<<endl;
-//             cout<<"文件:"<<filename<<endl;
-//             cout<<"大小:"<<filesize<<endl;
-            
-//             cout<<"是否继续接收?"<<endl;
-//             cout<<"1.继续"<<endl;
-//             cout<<"2.放弃"<<endl;
-            
-//             int choice;cin>>choice;
-//             if(choice==1){
-//                 json request;
-//                 request["msgid"]=QUERY_SEND_FILE_BLOCK_MSG;
-//                 request["sender"]=sender;
-//                 request["filename"]=filename;
-//                 request["receiver"]=FileClient::instance().getUsername();
-                
-//                 string data=MessageCodec::encode(request.dump());
-//                 send(fd,data.data(),data.size(),0);
-//             }
-            
-//             cout<<"============================"<<endl;
-// }
-
 else if(msgid==FILE_RESUME_NOTIFY){
     cout<<"发现未完成文件"<<endl;
     json query;

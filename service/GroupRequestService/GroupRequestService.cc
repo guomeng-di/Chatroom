@@ -14,6 +14,7 @@ using namespace std;
 json GroupRequestService::getRequestList(const json& js){
     json res;
     res["msgid"]=GET_GROUP_REQUEST_ACK;
+    //
     if(!js.contains("groupname")||!js.contains("operator")){
         res["errno"]=1;
         res["message"]="lack params";
@@ -22,13 +23,25 @@ json GroupRequestService::getRequestList(const json& js){
     string groupname=js["groupname"];
     string operatorName=js["operator"];
 
+    if(groupname.empty()||operatorName.empty()){
+        res["errno"]=1;
+        res["message"]="params cannot empty";
+        return res;
+    }
     GroupModel model;
+    //2. 判断群是否存在
+    if(!model.groupExist(groupname)){
+        res["errno"]=1;
+        res["message"]="group not exist";
+        return res;
+    }
+    //3. 判断操作者权限
     if(!model.isOwner(groupname,operatorName)&&!model.isAdmin(groupname,operatorName)){
         res["errno"]=1;
         res["message"]="permission denied";
         return res;
     }
-
+    //4. 获取申请列表
     GroupRequestModel requestModel;
     auto requests=requestModel.getRequests(groupname);
     res["requests"]=json::array();
@@ -45,6 +58,7 @@ json GroupRequestService::getRequestList(const json& js){
 json GroupRequestService::handleGroupRequest(const json& js){
     json res;
     res["msgid"]=HANDLE_GROUP_REQUEST_ACK;
+    //
     if(!js.contains("groupname")||!js.contains("username")||!js.contains("operator")||!js.contains("accept")){
         Logger::instance().error("handle group request lack params");
         res["errno"]=1;
@@ -56,7 +70,25 @@ json GroupRequestService::handleGroupRequest(const json& js){
     string operatorName=js["operator"];
     int accept=js["accept"];
 
+    //
+    if(groupname.empty()||username.empty()||operatorName.empty()){
+        res["errno"]=1;
+        res["message"]="params cannot empty";
+        return res;
+    }
+    //
+    if(accept!=0&&accept!=1){
+        res["errno"]=1;
+        res["message"]="invalid accept value";
+        return res;
+    }
     GroupModel groupModel;
+    //2. 判断群是否存在
+    if(!groupModel.groupExist(groupname)){
+        res["errno"]=1;
+        res["message"]="group not exist";
+        return res;
+    }
     //检查操作者权限
     if(!groupModel.isOwner(groupname,operatorName)&&!groupModel.isAdmin(groupname,operatorName)){
         Logger::instance().error("handle group request permission denied");
@@ -72,6 +104,13 @@ json GroupRequestService::handleGroupRequest(const json& js){
         res["message"]="user not exist";
         return res;
     }
+    //5. 判断用户是否已经在群里
+    if(groupModel.isMember(groupname,username)){
+        res["errno"]=1;
+        res["message"]="already group member";
+        return res;
+    }
+
     //检查这个用户是否真的申请过这个群
     GroupRequestModel requestModel;
     vector<GroupRequest> requests =requestModel.getRequests(groupname);
@@ -89,24 +128,26 @@ json GroupRequestService::handleGroupRequest(const json& js){
         return res;
     }
     //同意
-    if(accept==1){
-        //加入群
-        bool addResult=groupModel.addMember(groupname,username);
-        if(!addResult){
+    if(!groupModel.addMember(groupname,username)){
             Logger::instance().error("add group member failed");
             res["errno"]=1;
             res["message"]="add member failed";
             return res;
         }
-        //加入后删除申请记录
-        requestModel.deleteRequest(groupname,username);
+        if(!requestModel.deleteRequest(groupname,username)){
+            Logger::instance().error("delete group request failed");
         res["errno"]=0;
         res["message"]="accept success";
-    }else{//拒绝
-        requestModel.deleteRequest(groupname,username);
+        }
+//8. 拒绝申请
+    else{
+        if(!requestModel.deleteRequest(groupname,username)){
+            res["errno"]=1;
+            res["message"]="reject failed";
+            return res;
+        }
         res["errno"]=0;
         res["message"]="reject success";
-
     }
     //通知申请人
     TcpConnection* conn =OnlineUserManager::instance().getConnection(username);

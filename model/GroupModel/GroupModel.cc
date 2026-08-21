@@ -208,13 +208,21 @@ bool GroupModel::removeMember(const string& groupname,const string& username){
 bool GroupModel::deleteGroup(const string& groupname){
     MySQLManager mysql;
     if(!mysql.connect())return false;
-    string sql1="delete from group_admin ""where groupname='"+groupname+"'";
-    string sql2="delete from group_member ""where groupname='"+groupname+"'";
-    string sql3="delete from chat_group ""where groupname='"+groupname+"'";
-    mysql.execute(sql1);
-    mysql.execute(sql2);
-    mysql.execute(sql3);
-    return true;
+
+    cout<<"delete group name=["<<groupname<<"]"<<endl;
+
+    string sql1="delete from group_admin where groupname='"+groupname+"'";
+    string sql2="delete from group_member where groupname='"+groupname+"'";
+    string sql3="delete from chat_group where groupname='"+groupname+"'";
+
+    cout<<sql3<<endl;
+
+    bool r1=mysql.execute(sql1);
+    bool r2=mysql.execute(sql2);
+    bool r3=mysql.execute(sql3);
+
+    cout<<"delete result:"<<r1<<" "<<r2<<" "<<r3<<endl;
+    return r1&&r2&&r3;
 }
 bool GroupModel::addAdmin(const string& groupname,const string& username){
     MySQLManager mysql;
