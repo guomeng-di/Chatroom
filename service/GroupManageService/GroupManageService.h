@@ -22,4 +22,6 @@ class GroupManageService{
     static json addAdmin(const json& js);
     //删除管理员
     static json removeAdmin(const json& js);
+    //邀请进群
+    static json inviteGroup(const json& js);
 };

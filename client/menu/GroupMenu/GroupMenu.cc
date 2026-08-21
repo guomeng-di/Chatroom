@@ -24,7 +24,7 @@ cout << R"(
 
 | 2.  加入群                     |
 
-| 3.  群聊                       |
+| 3.  聊天                       |
 
 | 4.  查看群成员                 |
 
@@ -45,6 +45,8 @@ cout << R"(
 | 12. 查看我的群                 |
 
 | 13. 群聊记录                   |
+
+| 14. 邀请进群                   |
 
 | 0.  返回                      |
 
@@ -248,6 +250,24 @@ else if(cmd==13){
     js["groupname"]=groupName;
 
     string data=MessageCodec::encode(js.dump());
+    send(fd,data.data(),data.size(),0);
+}
+//邀请用户进群
+else if(cmd==14){
+    string groupName;
+    string member;
+    cout<<"群名称:";
+    cin>>groupName;
+    cout<<"邀请用户:";
+    cin>>member;
+
+    json js;
+    js["msgid"]=INVITE_GROUP_MSG;
+    js["groupname"]=groupName;
+    js["operator"]=username;
+    js["username"]=member;
+    string data=
+    MessageCodec::encode(js.dump());
     send(fd,data.data(),data.size(),0);
 }
 }

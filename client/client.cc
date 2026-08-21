@@ -122,39 +122,14 @@ bool sendVerifyCode(int fd,const string& email){
         return 0;
     }
     string res(buf,len);
-
-    cout<<"========== RAW RESPONSE =========="<<endl;
-    cout<<"len = "<<len<<endl;
-
-
     string result=MessageCodec::decode(res);
-    
-    cout<<"result = "<<result<<endl;
-    cout<<"=================================="<<endl;
-
-
     json js_=json::parse(result);
-
-    cout<<"response msgid = "
-        <<js_["msgid"]
-        <<endl;
-
-    cout<<"expected msgid = "
-        <<SEND_VERIFY_CODE_ACK
-        <<endl;
-
-    cout<<"response = "
-        <<js_.dump()
-        <<endl;
-
     if(!js_.contains("msgid")){
     cout<<"invalid verify code response: no msgid"<<endl;
     return false;
     }
     int receivedMsgId = js_["msgid"];
     int expectedMsgId = SEND_VERIFY_CODE_ACK;
-    cout<<"receivedMsgId = "<<receivedMsgId<<endl;
-    cout<<"expectedMsgId = "<<expectedMsgId<<endl;
     if(receivedMsgId != expectedMsgId){
     cout<<"invalid verify code response"<<endl;
     return false;
@@ -235,7 +210,6 @@ bool ResetPassword(int fd){
         return false;
     }
     cout<<"your verify code:";cin>>code;
-    
     cout<<"your new password:";cin>>password;
     json js;
     js["msgid"]=RESET_PASSWORD_MSG;
@@ -243,8 +217,41 @@ bool ResetPassword(int fd){
     js["code"]=code;
     js["password"]=password;
     string data=MessageCodec::encode(js.dump());
-    send(fd,data.data(),data.size(),0);
-    return 1;
+    int ret=send(fd,data.data(),data.size(),0);
+    if(ret<=0){
+        cout<<"send reset password failed"<<endl;
+        return false;
+    }
+while(1){
+    //等待RESET_PASSWORD_ACK
+    char buffer[4096]={0};
+    int len=recv(fd,buffer,sizeof(buffer),0);
+    if(len<=0){
+            cout<<"server close"<<endl;
+            close(fd);
+            return false;
+        }
+    clientBuffer.append(buffer,len);
+        while(clientBuffer.hasMessage()){
+            string msg=clientBuffer.retrieveMessage();
+            int msgid=MessageCodec::getMsgId(msg);
+            string jsonStr(msg.data()+4,msg.size()-4);
+            json response=json::parse(jsonStr);
+
+            if(msgid==RESET_PASSWORD_ACK){
+                if(response["errno"]==0){
+                    cout<<COLOR_GREEN<<response["message"]<<COLOR_RESET<<endl;
+                    return true;
+                }else{
+                    cout<<COLOR_RED<<response["message"]<<COLOR_RESET <<endl;
+                    return false;
+                }
+            }
+            //其他消息继续交给统一处理
+            ClientMessageHandler::handle(response,fd);
+        }
+    }
+    return false;
 }
 
 void printMainMenu(){
@@ -315,9 +322,9 @@ cout << R"(
 |                                |
 |             聊天室              |
 +--------------------------------+
-|        1. 登录                  |
+|        1. 登录(密码)             |
 |        2. 注册                  |
-|        3. 重置密码               |
+|        3. 重置密码(验证码登录)   |
 |        0. 退出                  |
 +--------------------------------+
 )";

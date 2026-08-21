@@ -1,5 +1,7 @@
 #include "GroupManageService.h"
 #include "../../model/GroupModel/GroupModel.h"
+#include "../../netlib/net/TcpConnection/TcpConnection.h"
+#include "../../manager/OnlineUserManager/OnlineUserManager.h"
 #include <iostream>
 #include "../../protocol/MsgId.h"
 #include "../../netlib/base/Logger.h"
@@ -231,4 +233,79 @@ json GroupManageService::deleteGroup(const json& js){
         response["message"]="delete group failed";
     }
     return response;
+}
+json GroupManageService::inviteGroup(const json& js){
+    json res;
+    res["msgid"]=INVITE_GROUP_ACK;
+    //
+    if(!js.contains("groupname")||!js.contains("operator")||!js.contains("username")){
+        res["errno"]=1;
+        res["message"]="lack params";
+        return res;
+    }
+
+    string groupname=js["groupname"];
+    string operatorName=js["operator"];
+    string username=js["username"];
+
+    GroupModel model;
+    //1. 群存在
+    if(!model.groupExist(groupname)){
+        res["errno"]=1;
+        res["message"]="group not exist";
+        return res;
+    }
+    //2. 操作者权限
+    if(!model.isOwner(groupname,operatorName)&&!model.isAdmin(groupname,operatorName)){
+        res["errno"]=1;
+        res["message"]="permission denied";
+        return res;
+    }
+    //3. 被邀请的人是否已经在群
+    if(model.isMember(groupname,username)){
+        res["errno"]=1;
+        res["message"]="already group member";
+        return res;
+    }
+    //4. 加入群
+    if(!model.addMember(groupname,username)){
+        res["errno"]=1;
+        res["message"]="invite failed";
+        return res;
+    }
+
+    Logger::instance().info(operatorName+" invite "+username+" join group "+groupname);
+    cout<<operatorName<<" invite "<<username<<" join group "<<groupname<<endl;
+    //5. 通知被邀请人
+    TcpConnection* userConn=OnlineUserManager::instance().getConnection(username);
+    if(userConn){
+        cout<<"invite notify send success"<<endl;
+        Logger::instance().info("invite notify send success");
+        json notify;
+        notify["msgid"]=GROUP_INVITE_NOTIFY;
+        notify["groupname"]=groupname;
+        notify["message"]="you are invited to group "+groupname;
+        userConn->send(notify.dump());
+    }else{
+        Logger::instance().info("invite user offline:"+username);
+        cout<<"invite user offline:"<<username<<endl;
+    }
+    //7. 通知群成员有人加入
+    auto members=model.getMembers(groupname);
+    json joinNotify;
+    joinNotify["msgid"]=GROUP_MEMBER_JOIN_NOTIFY;
+    joinNotify["groupname"]=groupname;
+    joinNotify["username"]=username;
+    joinNotify["message"]=username+" joined group "+groupname;
+
+    string data=joinNotify.dump();
+    for(auto& member:members){
+        //不通知自己
+        if(member==username) continue;
+        TcpConnection* conn=OnlineUserManager::instance().getConnection(member);
+        if(conn)  conn->send(data);
+    }
+    res["errno"]=0;
+    res["message"]="invite success";
+    return res;
 }

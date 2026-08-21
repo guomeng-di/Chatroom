@@ -33,11 +33,14 @@ EmailManager& EmailManager::instance(){
 bool EmailManager::sendCode(const std::string& email,const std::string& code){
     //句柄初始化,后续通过它进行发送操作
     CURL* curl=curl_easy_init();
-    //初始化失败
     if(!curl){
         Logger::instance().error("curl init failed");
-        return 0;
+        return false;
     }
+
+    // 禁止SMTP使用环境代理
+    curl_easy_setopt(curl, CURLOPT_PROXY, "");
+
     string username="3646455676@qq.com";
     string password="yqscfeoyoyqdciaf";
     string mail="To: "+email+"\r\n"
@@ -89,11 +92,7 @@ bool EmailManager::sendCode(const std::string& email,const std::string& code){
     curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 0L);
     curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, 0L);
 
-    curl_easy_setopt(
-    curl,
-    CURLOPT_VERBOSE,
-    1L
-);
+    curl_easy_setopt(curl,CURLOPT_VERBOSE,1L);
         //正式发送
         CURLcode res=curl_easy_perform(curl);
         //释放

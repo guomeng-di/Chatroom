@@ -32,11 +32,8 @@ Logger::instance().info("reset code="+code);
     string right_code=RedisManager::instance().getVerifyCode(email);
 
     Logger::instance().info("email="+email);
-    cout<<"email="<<email<<endl;
     Logger::instance().info("input code="+code);
-    cout<<"input code="<<code<<endl;
     Logger::instance().info("redis code="+right_code);
-    cout<<"redis code="<<right_code<<endl;
 
     if(right_code!=code){
         Logger::instance().error("code wrong");

@@ -296,6 +296,12 @@ void MessageDispatcher::dispatch(const json& js,TcpConnection* conn){
             FileService::fileBlockAck(js,conn);
             break;
 }
+//41邀请进群
+case INVITE_GROUP_MSG:{
+    json response=GroupManageService::inviteGroup(js);
+    conn->send(response.dump());
+    break;
+}
         
 // //38离线后登录,文件
 //         case FILE_RESUME_SEND:{

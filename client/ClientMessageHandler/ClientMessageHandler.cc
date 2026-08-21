@@ -370,18 +370,44 @@ else if(msgid==LEAVE_GROUP_ACK){
         cout<< COLOR_RED<< js["message"] << COLOR_RESET<< endl;
     }
 }
-//重置密码
-        else if(msgid==RESET_PASSWORD_ACK){
-             if(js["errno"]==0){
-                cout<<"\n==========密码设置=========="<<endl;
-                cout<<"reset password success"<<endl;
-                cout<<"============================="<<endl;
-            }else{
-                cout<<"\n==========密码设置失败=========="<<endl;
-                cout<<"reset password failed:"<<js["message"]<<endl;
-                cout<<"============================="<<endl;
-            }
+//邀请进群
+else if(msgid==GROUP_INVITE_NOTIFY){
+    cout<<COLOR_BLUE<<js["message"]<<COLOR_RESET<<endl;
+}
+else if(msgid==GROUP_MEMBER_JOIN_NOTIFY){
+    cout<<COLOR_BLUE<<js["message"]<<COLOR_RESET<<endl;
+}
+//查看群成员响应
+else if(msgid==GROUP_MEMBER_ACK){
+    if(js["errno"]==0){
+        cout<< COLOR_GREEN<< js["message"]<< COLOR_RESET<< endl;
+        for(auto& member:js["members"]){
+            cout<< COLOR_BLUE<< member<< COLOR_RESET<< endl;
         }
+    }else{
+        cout<< COLOR_RED<< js["message"]<< COLOR_RESET<< endl;
+    }
+}
+//邀请进群响应
+else if(msgid==INVITE_GROUP_ACK){
+    if(js["errno"]==0){
+        cout<< COLOR_GREEN<< js["message"]<< COLOR_RESET<< endl;
+    }else{
+        cout<< COLOR_RED<< js["message"]<< COLOR_RESET<< endl;
+    }
+}
+// //重置密码
+//         else if(msgid==RESET_PASSWORD_ACK){
+//              if(js["errno"]==0){
+//                 cout<<"\n==========密码设置=========="<<endl;
+//                 cout<<"reset password success"<<endl;
+//                 cout<<"============================="<<endl;
+//             }else{
+//                 cout<<"\n==========密码设置失败=========="<<endl;
+//                 cout<<"reset password failed:"<<js["message"]<<endl;
+//                 cout<<"============================="<<endl;
+//             }
+//         }
 //屏蔽成功
 else if(msgid==ADD_BLOCK_ACK){
     if(js["errno"]==0){
