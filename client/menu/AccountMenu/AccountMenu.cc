@@ -1,6 +1,7 @@
 #include "AccountMenu.h"
 #include "../../../protocol/MessageCodec/MessageCodec.h"
 #include "../../../protocol/MsgId.h"
+#include "../MainMenu/MainMenu.h"
 #include "../Color.h"
 #include <nlohmann/json.hpp>
 #include <iostream>
@@ -65,7 +66,7 @@ else if(cmd==1){
     string data=MessageCodec::encode(js.dump());
     send(fd,data.data(),data.size(),0);
     cout<<"退出登录成功"<<endl;
-    break;
+    exit(0);
 }
 //注销账号
 else if(cmd==2){
@@ -81,7 +82,7 @@ else if(cmd==2){
     string data=MessageCodec::encode(js.dump());
     send(fd,data.data(),data.size(),0);
     cout<<"注销请求已发送"<<endl;
-    break;
+    exit(0);
 }
 //修改密码
 else if(cmd==3){
