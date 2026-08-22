@@ -55,7 +55,6 @@ list(FILTER SERVER_SRC EXCLUDE REGEX ".*/netlib/main\\.cc$")
 # =========================
 # client源码
 # =========================
-
 file(GLOB_RECURSE CLIENT_SRC
 
     "${PROJECT_SOURCE_DIR}/client/*.cc"
@@ -71,6 +70,10 @@ file(GLOB_RECURSE CLIENT_SRC
     "${PROJECT_SOURCE_DIR}/protocol/*/*.cc"
 
     "${PROJECT_SOURCE_DIR}/manager/FileManager/*.cc"
+
+    "${PROJECT_SOURCE_DIR}/model/FileModel/*.cc"
+
+    "${PROJECT_SOURCE_DIR}/database/MySQLManager/*.cc"
 
     "${PROJECT_SOURCE_DIR}/utils/MD5/*.cc"
 
@@ -137,9 +140,12 @@ add_executable(client
 
 target_link_libraries(client
 
+    mysqlclient
+
     crypto
 
     pthread
+
 
 )
 

@@ -18,17 +18,15 @@
 
 using namespace std;
 json FileService::sendFileRequest(const json& js,TcpConnection* conn){
-    cout << "sendFileRequest receive:" << endl;
-    cout << js.dump(4) << endl;
     json res;
     res["msgid"] = SEND_FILE_REQUEST_ACK;
     // 1. 检查基本参数
-    if(!js.contains("fromname") ||!js.contains("targetType") ||!js.contains("filename") ||!js.contains("filesize")){
+    if(!js.contains("targetType") ||!js.contains("filename") ||!js.contains("filesize")){
         Logger::instance().error("send file request lack params");
         res["errno"] = 1,res["message"] ="send file request lack params";
         return res;
     }
-    //string fromname = js["fromname"];
+
     string fromname = conn->getUsername();
     string filename = js["filename"];
     ll filesize = js["filesize"];
@@ -42,7 +40,6 @@ json FileService::sendFileRequest(const json& js,TcpConnection* conn){
             return res;
         }
         string toname = js["toname"];
-        int fileid = -1;
 
         FriendModel friendModel;
 
@@ -55,8 +52,7 @@ if(!friendModel.isFriend(fromname,toname))
 
 FriendBlockModel blockModel;
 
-if(blockModel.isBlocked(toname,fromname))
-{
+if(blockModel.isBlocked(toname,fromname)){
     res["errno"]=1;
     res["message"]="you are blocked";
     return res;
@@ -64,7 +60,7 @@ if(blockModel.isBlocked(toname,fromname))
 
 
         // 2.1 先检查有没有未完成的旧文件
-        fileid = model.getUnfinishedFileId(fromname,toname,filename);
+        int fileid = model.getUnfinishedFileId(fromname,toname,filename);
         if(fileid >=0){
             // 已经存在未完成文件,不再创建新的 file_info
             cout << "\n==========发现未完成文件==========" << endl;
@@ -192,8 +188,7 @@ json FileService::acceptFile(const json& js,TcpConnection* conn){
         return res;
     }
     
-    string sender=conn->getUsername();
-    //string sender=js["fromname"];//源文件请求发送者
+    string sender=js["fromname"];//源文件请求发送者
     string acceptor=conn->getUsername();//我同意你的请求
     string filename=js["filename"];
 
@@ -223,7 +218,7 @@ bool update=false;
 if(targetType=="user") update=model.updateFileStatus(sender,acceptor,filename,1);
 else if(targetType=="group"){
     model.getFileId(sender,"",groupname,"group",filename);
-    update=model.updateGroupFileStatus(sender,groupname,filename,1);
+    update=model.updateFileStatus(sender,groupname,filename,1);
 }
 if(!update){
     res["errno"]=1;
@@ -260,8 +255,14 @@ if(!target){
         notify["targetType"]=targetType;
         notify["receiver"]=acceptor;
         if(targetType=="group") notify["groupname"]=groupname;
-        vector<int> blocks=model.getReceivedBlocks(fileid,acceptor);
-        notify["blocks"]=blocks;
+
+        string receiver;
+
+if(js["targetType"]=="group") receiver=js["groupname"];
+else receiver=js["receiver"];
+
+        long long size=model.getReceivedSize(fileid,receiver);
+        notify["received_size"]=size;
         target->send(notify.dump());
         res["errno"]=0;
         res["message"]="accept file request success";
@@ -269,51 +270,31 @@ if(!target){
     return res;
 }
 void FileService::receiveFileData(const FilePacket& packet,TcpConnection* conn){
-    Logger::instance().info("packet msgid=" + to_string(packet.msgid));
-    json js = packet.info;
-    //int fileid = js["fileid"];
-    string filename = js["filename"];
-    int blockid = js["blockid"];
-    string targetType = js["targetType"];
-    string toname;
-    string groupname;
-    if(targetType == "user")toname = js["toname"];
-    else if(targetType == "group")groupname = js["groupname"];
+json js=packet.info;
 
-    string sendData =MessageCodec::encodeBinary(packet.msgid,packet.info,packet.data);
-    // 用户文件
-    if(targetType == "user"){
-        TcpConnection* target =OnlineUserManager::instance().getConnection(toname);
-        if(!target){
-            Logger::instance().error("receiver offline:"+ toname+ " block="+ to_string(blockid));
-            return;
-        }
-        // 转发给接收方
-        bool ok = target->sendBinary(sendData);
-        if(!ok){
-            Logger::instance().error("forward file block failed block="+ to_string(blockid));
-            return;
-        }
-        cout << "forward block:" << blockid<< " to "<< toname<< endl;
-    }
-    // 群文件
-    else if(targetType == "group"){
-        string receiver = js["receiver"];
-        TcpConnection* target =OnlineUserManager::instance().getConnection(receiver);
-        if(!target){
-            Logger::instance().error("group receiver offline:"+ receiver+ " block="+ to_string(blockid));
-            return;
-        }
-        bool ok =target->sendBinary(sendData);
-        if(!ok){
-            Logger::instance().error("send group file block failed");
-            return;
-        }
-        cout << "forward group block:"<< blockid<< " to "<< receiver << endl;
-    }
+int fileid=js["fileid"];
+string targetType=js["targetType"];
+long long filesize=js["filesize"];
+
+string receiver;
+if(targetType=="user")receiver=js["toname"];
+else receiver=js["receiver"];
+
+TcpConnection* target =OnlineUserManager::instance().getConnection(receiver);
+if(!target) return;
+
+string data =MessageCodec::encodeBinary(packet.msgid,packet.info,packet.data);
+
+if(target->sendBinary(data)){
+    FileModel model;
+
+    long long offset =js["offset"];
+    long long size =offset + packet.data.size();
+    long long old =model.getReceivedSize(fileid,receiver);
+
+    if(size>old)
+        model.updateReceivedSize(fileid,receiver,size);
 }
-void FileService::sendFileData( const json& js,TcpConnection* conn){
-    Logger::instance().info("send file data");
 }
 void FileService::finishFile(const json& js,TcpConnection* conn){
     if(!js.contains("filename") ||!js.contains("fromname") ||!js.contains("filesize") ||!js.contains("fileid")){
@@ -332,29 +313,72 @@ void FileService::finishFile(const json& js,TcpConnection* conn){
 
     string filename = js["filename"];
     string fromname = js["fromname"];
-    //string toname = js["toname"];
     long long filesize = js["filesize"];
     int fileid = js["fileid"];
-    const long long BLOCK_SIZE = 4096;
-    long long expectedBlocks =(filesize + BLOCK_SIZE - 1)/ BLOCK_SIZE;
+
     FileModel model;
-    vector<int> blocks =model.getReceivedBlocks(fileid,receiver);
+    long long receivedSize =model.getReceivedSize(fileid,receiver);
 
-    cout << "finish check:"<< " received="<< blocks.size()<< " expected="<< expectedBlocks<< endl;
+     cout
+    << "========== finish check =========="
+    << endl;
 
-    // block没有收完整
-    if(static_cast<long long>(blocks.size())!= expectedBlocks){
-        if(targetType=="user") model.updateFileStatus(fromname,toname,filename,1);
-        else model.updateFileReceiver(fileid,receiver,1);
+    cout
+    << "fileid="
+    << fileid
+    << endl;
+
+    cout
+    << "received size="
+    << receivedSize
+    << endl;
+
+    cout
+    << "filesize="
+    << filesize
+    << endl;
+
+    cout
+    << "=================================="
+    << endl;
+    // 文件没有接收完成
+
+    if(receivedSize < filesize)
+    {
+
+        cout<<"file not finish"<<endl;
+
+
+        if(targetType=="user")
+        {
+            model.updateFileStatus(
+                fromname,
+                toname,
+                filename,
+                1
+            );
+        }
+
+        else if(targetType=="group")
+        {
+            model.updateFileReceiver(
+                fileid,
+                receiver,
+                1
+            );
+        }
+
+
         return;
     }
+
 
     if(targetType=="user")model.updateFileStatus(fromname,toname,filename,2);
     else if(targetType=="group"){
         model.updateFileReceiver(fileid,receiver,2);
         //检查所有接收者
         if(model.checkAllReceiverFinish(fileid)){
-            model.updateGroupFileStatus(fromname,js["groupname"],filename,2);
+            model.updateFileStatus(fromname,js["groupname"],filename,2);
             cout<<"all group receiver finish"<<endl;
         }
     }
@@ -372,119 +396,49 @@ void FileService::finishFile(const json& js,TcpConnection* conn){
 
     conn->send(notify.dump());
 }
-json FileService::querySendFileBlock(const json& js,TcpConnection* conn){
-    json res;
-    res["msgid"] = FILE_RESUME_ACCEPT;
 
-    if(!js.contains("filename") ||!js.contains("sender") ||!js.contains("receiver")){
+json FileService::queryResumeFile(const json& js,TcpConnection* conn){
+    json res;
+    res["msgid"]=FILE_RESUME_REPLY;
+    if(!js.contains("filename")||!js.contains("receiver")){
         res["errno"]=1;
         res["message"]="lack params";
         return res;
     }
+
     string filename=js["filename"];
     string sender=conn->getUsername();
-    //string sender=js["sender"];
     string receiver=js["receiver"];
-    cout << "\n========== query file block ==========" << endl;
-    cout << "sender=" << sender << endl;
-    cout << "receiver=" << receiver << endl;
-    cout << "filename=" << filename << endl;
 
     FileModel model;
-    int fileid = model.getUnfinishedFileId(sender,receiver,filename);
-    cout << "unfinished fileid=" << fileid << endl;
-    if(fileid < 0){
-        res["errno"] = 1;
-        res["message"] = "unfinished file not found";
+    int fileid=model.getUnfinishedFileId(sender,receiver,filename);
+    if(fileid<0){
+        res["errno"]=1;
+        res["message"]="file not found";
         return res;
     }
-    long long filesize = model.getFileSize(fileid);
-    if(filesize < 0){
-        res["errno"] = 1;
-        res["message"] = "get filesize failed";
-        return res;
-    }
-    vector<int> blocks =model.getReceivedBlocks(fileid, receiver);
+    long long receivedSize=model.getReceivedSize(fileid,receiver);
+    long long filesize=model.getFileSize(fileid);
 
-    cout << "\n===== FILE RESUME =====" << endl;
-    cout << "fileid   = " << fileid << endl;
-    cout << "sender   = " << sender << endl;
-    cout << "receiver = " << receiver << endl;
-    cout << "filename = " << filename << endl;
-    cout << "filesize = " << filesize << endl;
-    cout << "block数  = "<< blocks.size()<< endl;
+    cout<<"========== resume =========="<<endl;
+    cout<<"fileid="<<fileid<<endl;
+    cout<<"received_size="<<receivedSize<<endl;
+    cout<<"filesize="<<filesize<<endl;
+    cout<<"============================="<<endl;
+    
+    res["received_size"]=receivedSize;
+    res["errno"]=0;
+    res["fileid"]=fileid;
+    res["filename"]=filename;
+    res["filesize"]=filesize;
 
-    cout << "blocks  = ";
-    for(int b : blocks)
-        cout << b << " ";
-
-    cout << endl;
-    // 给发送方
-    TcpConnection* senderConn =OnlineUserManager::instance().getConnection(sender);
-
-    if(senderConn){
-        json notify;
-
-        notify["msgid"] = FILE_RESUME_SEND;
-        notify["fileid"] = fileid;
-        notify["filename"] = filename;
-        notify["filesize"] = filesize;   
-        notify["receiver"] = receiver;
-        notify["blocks"] = blocks;
-
-        senderConn->send(notify.dump());
-        cout << "resume notify sent to sender" << endl;
-    }
-    // 给接收方
-    res["errno"] = 0;
-    res["message"] = "query success";
-    res["fileid"] = fileid;
-    res["filename"] = filename;
-    res["filesize"] = filesize;   // ★ 关键
-    res["sender"] = sender;
-    res["receiver"] = receiver;
-    res["blocks"] = blocks;
-    cout << "===================================="<< endl;
     return res;
 }
+void FileService::updateFileOffset(const json& js,TcpConnection* conn){
+    if(!js.contains("fileid")||!js.contains("offset")){
+        return;
+    }
 
-void FileService::fileBlockAck(const json& js,TcpConnection* conn){
-    if(!js.contains("fileid")||!js.contains("filename")||!js.contains("blockid")||!js.contains("receiver")||!js.contains("fromname")){
-        Logger::instance().error("file block ack lack params");
-        return;
-    }
-    int fileid =js["fileid"];
-    string filename =js["filename"];
-    int blockid =js["blockid"];
-    string receiver =js["receiver"];
-    string sender=conn->getUsername();
-    //string sender = js["fromname"];
-    cout << "========== FILE BLOCK ACK =========="<< endl;
-    cout << "fileid   = "<< fileid<< endl;
-    cout << "filename = "<< filename<< endl;
-    cout << "sender   = "<< sender<< endl;
-    cout << "receiver = "<< receiver<< endl;
-    cout << "blockid  = "<< blockid<< endl;
-    // FileModel model;
-    // if(!model.saveFileBlock(fileid,filename,receiver,blockid)){
-    //     Logger::instance().error("save file block failed:"+ to_string(blockid));
-    //     return;
-    // }
-    // cout<<"save block success:"<< blockid<< endl;
-    //转发ACK给发送方
-    TcpConnection* senderConn=OnlineUserManager::instance().getConnection(sender);
-    if(!senderConn){
-        Logger::instance().error("sender offline:"+sender);
-        return ;
-    }
-    //string ackData=MessageCodec::encode(js.dump());
-    senderConn->send(js.dump());
-    cout<<"forward ACK to sender:"<<sender<<" block="<<blockid<<endl;
-    FileModel model;
-    if(!model.saveFileBlock(fileid,filename,receiver,blockid)){
-        Logger::instance().error("save file block failed:"+ to_string(blockid));
-        return;
-    }
-    cout<<"save block success:"<< blockid<< endl;
-    cout<<"===================================="<< endl;
+    int fileid=js["fileid"];
+    long long offset=js["offset"];
 }

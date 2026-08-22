@@ -14,6 +14,7 @@
 #include "../FriendRequestService/FriendRequestService.h"
 #include "../../netlib/net/TcpConnection/TcpConnection.h"
 #include "../../protocol/MsgId.h"
+#include "../../manager/FileManager/FileManager.h"
 #include <iostream>
 #include "../DeleteAccountService/DeleteAccountService.h"
 #include "../ResetPasswordService/ResetPasswordService.h"
@@ -276,7 +277,12 @@ void MessageDispatcher::dispatch(const json& js,TcpConnection* conn){
         }
 //35发送文件
         case FILE_DATA_MSG:{
-            FileService::sendFileData(js,conn);
+            ReceiveFileInfo info;
+            info.fileid =js["fileid"];
+            info.filename =js["filename"];
+            info.filesize =js["filesize"];
+            info.receivedSize=js["received_size"];
+            FileService::receiveFileData(info,conn);
             break;
         }
 //36发送完毕
@@ -284,18 +290,19 @@ void MessageDispatcher::dispatch(const json& js,TcpConnection* conn){
             FileService::finishFile(js,conn);
             break;
         }
-//37查询blocks
-        case QUERY_SEND_FILE_BLOCK_MSG:{
-            json res=FileService::querySendFileBlock(js,conn);
-            conn->send(res.dump());
-            cout<<"query file block"<<endl;
-            break;
-        }
+// //37查询blocks
+//         case QUERY_SEND_FILE_BLOCK_MSG:{
+//             json res=FileService::querySendFileBlock(js,conn);
+//             conn->send(res.dump());
+//             cout<<"query file block"<<endl;
+//             break;
+//         }
 
-        case FILE_BLOCK_ACK:{
-            FileService::fileBlockAck(js,conn);
-            break;
-}
+        //
+//         case FILE_BLOCK_ACK:{
+//             FileService::fileBlockAck(js,conn);
+//             break;
+// }
 //41邀请进群
 case INVITE_GROUP_MSG:{
     json response=GroupManageService::inviteGroup(js);

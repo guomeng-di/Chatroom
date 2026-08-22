@@ -85,13 +85,15 @@ enum MsgId
 
     //QUERY_FILE_BLOCK_MSG=37,//发送方询问,你有哪些block了(用户手动查询)
 
-    QUERY_SEND_FILE_BLOCK_MSG=38,// 发送方准备续传时查询
+    QUERY_SEND_FILE_OFFSET_MSG=38,// 发送方准备续传时查询
 
     FILE_RESUME_SEND=39,
 
     FILE_BLOCK_ACK=40,//接收方真正写入文件后确认
 
-    INVITE_GROUP_MSG=41
+    INVITE_GROUP_MSG=41,
+
+    FILE_RESUME_REQUEST=42
 };
  
 
@@ -230,5 +232,9 @@ enum NotifyId
 
     GROUP_INVITE_NOTIFY=2017,
 
-    GROUP_MEMBER_JOIN_NOTIFY=2018
+    GROUP_MEMBER_JOIN_NOTIFY=2018,
+
+    FILE_RESUME_REPLY
 };
+
+

@@ -9,9 +9,7 @@ struct ReceiveFileInfo{
     std::string fromname;
     std::string filename;
     long long filesize=0;
-    long long receivedSize=0;
-    int lastBlock=-1;
-    std::vector<int> receivedBlocks;
+    long long receivedSize=0;//已经收到的字节
 };
 
 class FileManager{
@@ -20,12 +18,11 @@ class FileManager{
         static FileManager manager;
         return manager;
     }
-      void startReceive(int fileid,const std::string& fromname,const std::string& filename,long long filesize,bool resume=false);
-      bool updateBlock(int fileid,int blockid,int size);
-      bool checkFinish(int fileid);
+      void startReceive(int fileid,const std::string& fromname,const std::string& filename,long long filesize,long long receivedSize);
+      bool updateSize(int fileid,long long size);
+      long long getReceivedSize(int fileid);
       bool exists(int fileid);
-      void resumeReceive(int fileid,const std::string& fromname,const std::string& filename,long long filesize,const std::vector<int>& receivedBlocks);
-      bool hasBlock(int fileid,int blockid);
+      bool checkFinish(int fileid);
     private:
       FileManager(){}
       std::map<int,ReceiveFileInfo> files_;

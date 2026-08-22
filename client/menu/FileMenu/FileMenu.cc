@@ -15,7 +15,7 @@ using json=nlohmann::json;
 
 void FileMenu::run(int fd,const string& username){
 while(true){
-cout<<COLOR_RESET;
+cout<<COLOR_BLUE;
 cout<<R"(
 
 +---------------------------+

@@ -38,14 +38,7 @@ string MessageCodec::encodeBinary(int msgid,const json& js,const string& data){
     result+=data;
     return result;//json+二进制
 }
-// bool MessageCodec::decodeHeader(const string& data,int& msgid,int& bodyLen){
-//     if(data.size()<8) return 0;
-//     int totalLen;
-//     memcpy(&totalLen,data.data(),4);
-//     memcpy(&msgid,data.data()+4,4);
-//     bodyLen=totalLen-4;
-//     return 1;
-// }
+
 int MessageCodec::getMsgId(const string& data){
     int msgid;
     memcpy(&msgid,data.data(),4);

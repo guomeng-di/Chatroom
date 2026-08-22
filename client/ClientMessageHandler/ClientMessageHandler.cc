@@ -453,7 +453,7 @@ else if(msgid==REMOVE_BLOCK_ACK){
 
 
             // 保存待接收文件请求
-            FileClient::instance().addPendingFile(file.sender,file.filename,file.filesize,file.targetType,file.groupname);
+            FileClient::instance().addPendingFile(file.sender,file.filename,file.filesize,file.targetType,file.groupname,file.fileid);
             cout<<"pending file saved"<<endl;
             cout<<"============================"<<endl;
         }
@@ -471,20 +471,16 @@ else if(msgid==REMOVE_BLOCK_ACK){
     string filename = js["filename"];
     int fileid = js["fileid"];
 
-    vector<int> blocks;
-    if(js.contains("blocks")){
-        for(auto& b:js["blocks"]){
-            blocks.push_back(b);
-            cout<<"exist block: "<<b<<endl;
-        }
-    }
+
     cout<<"start send file"<<endl;
     string target=receiver;
     string targetType="user";
     string groupname="";
     if(js.contains("targetType")) targetType=js["targetType"];
     if(targetType=="group") groupname=js["groupname"];
-     FileClient::instance().sendFile(fd,fileid,filename,target,targetType,groupname,blocks);
+    long long offset=0;
+    if(!js.contains("received_size")) offset=js["received_size"];
+     FileClient::instance().sendFile(fd,fileid,filename,target,targetType,groupname,offset);
 }
 
 
@@ -507,7 +503,7 @@ else if(msgid==REMOVE_BLOCK_ACK){
 else if(msgid==FILE_RESUME_NOTIFY){
     cout<<"发现未完成文件"<<endl;
     json query;
-    query["msgid"]=QUERY_SEND_FILE_BLOCK_MSG;
+    query["msgid"]=FILE_RESUME_REQUEST;
     query["sender"]=js["fromname"];
     query["receiver"]=FileClient::instance().getUsername();
     query["filename"]=js["filename"];
@@ -517,31 +513,24 @@ else if(msgid==FILE_RESUME_NOTIFY){
         //离线后上线文件恢复
         else if(msgid==FILE_RESUME_SEND){
             cout<<"==========恢复发送文件=========="<<endl;
-            if(!js.contains("fileid") ||!js.contains("filename") ||!js.contains("receiver") ||!js.contains("blocks")){
+            if(!js.contains("fileid") ||!js.contains("filename") ||!js.contains("receiver") ||!js.contains("received_size")){
                 cout << "resume info missing" << endl;
                 return;
             }
             int fileid=js["fileid"];
             string filename=js["filename"];
             string receiver=js["receiver"];
-            
-            vector<int> blocks;
-            for(auto& b:js["blocks"]) blocks.push_back(b);
+            long long offset=js["received_size"];
 
             cout << "fileid=" << fileid << endl;
             cout << "filename=" << filename << endl;
             cout << "receiver=" << receiver << endl;
-
-            cout<<"已经收到:"<<blocks.size()<<" blocks"<<endl;
-            cout << "blocks:";
-            
-            for(int block : blocks) cout << block << " ";
-            
-            cout << endl<<"开始断点续传..." << endl;
+            cout<<"already receive size="<<offset<<endl;
+            cout<<"开始断点续传..."<<endl;
             //不能直接调用sendFile(),因为当前线程负责接收ACK
             //sendFile()会waitForBlock阻塞当前线程
-            std::thread sendThread([&fd,fileid,filename,receiver,blocks](){
-                FileClient::instance().sendFile(fd,fileid,filename,receiver,"user","",blocks);
+            std::thread sendThread([&fd,fileid,filename,receiver,offset](){
+                FileClient::instance().sendFile(fd,fileid,filename,receiver,"user","",offset);
             }
         );
             sendThread.detach();
@@ -631,7 +620,7 @@ else if(msgid==RESET_PASSWORD_ACK){
         else if(msgid==FILE_RESUME_ACCEPT){
             cout<<"\n\n==========请求重发文件=========="<<endl;
             cout<<js.dump(4)<<endl;
-            if(!js.contains("fileid") ||!js.contains("filename") ||!js.contains("sender") ||!js.contains("receiver") ||!js.contains("blocks")){
+            if(!js.contains("fileid") ||!js.contains("filename") ||!js.contains("sender") ||!js.contains("received_size")){
                 cout<<"resume info missing"<<endl;
                 return;
             }
@@ -640,38 +629,50 @@ else if(msgid==RESET_PASSWORD_ACK){
             string filename=js["filename"];
             string sender =js["sender"];
             string receiver=js["receiver"];
-            long long filesize = js["filesize"];
+            long long received_size=js["received_size"];
 
-            vector<int> blocks;
-                for(auto& b:js["blocks"]){
-                    blocks.push_back(b);
-                    //cout<<"already received block:"<<b<<endl;
-                }
-         FileManager::instance().resumeReceive(fileid,sender,filename,filesize,blocks);
-         
-         cout << "resume receive initialized"<< endl;
-         cout << "already received:"<< blocks.size()<< " blocks"<< endl;
-         //FileClient::instance().sendFile(fd,fileid,filename,receiver,"user","", blocks);
-         cout << "等待发送方继续发送..."<< endl;
-         cout<<"============================"<<endl;
+            cout<<"fileid="<<fileid<<endl;
+            cout<<"filename="<<filename<<endl;
+            cout<<"sender="<<sender<<endl;
+            cout<<"receiver="<<receiver<<endl;
+            cout<<"already received size="<<received_size<<endl;
+            cout<<"等待发送方继续发送..."<<endl;
+            cout<<"============================"<<endl;
 }  
    
         //文件分片 ACK
-        else if(msgid == FILE_BLOCK_ACK){
-            if(!js.contains("fileid") ||!js.contains("blockid")){
-                cout << "FILE_BLOCK_ACK lack params" << endl;
-                return;
-            }
-            int fileid = js["fileid"];
-            int blockid = js["blockid"];
+//         else if(msgid == FILE_BLOCK_ACK){
+//             if(!js.contains("fileid") ||!js.contains("blockid")){
+//                 cout << "FILE_BLOCK_ACK lack params" << endl;
+//                 return;
+//             }
+//             int fileid = js["fileid"];
+//             int blockid = js["blockid"];
 
-            FileClient::instance().notifyBlockAck(fileid,blockid);
-            
-            cout << "========== FILE BLOCK ACK ==========" << endl;
-            cout << "fileid   = " << fileid << endl;
-            cout << "blockid  = " << blockid << endl;
-            cout << "====================================" << endl;
-            return;
+//             cout<<"========== FILE BLOCK ACK =========="<<endl;
+//             cout<<"fileid="<<fileid<<endl;
+//             cout<<"blockid="<<blockid<<endl;
+//             cout<<"===================================="<<endl;
+//             return;
+// }
+else if(msgid ==SEND_FILE_REQUEST_ACK)
+{
+    if(js["errno"] == 0)
+    {
+        cout << COLOR_GREEN
+             << "[好友请求] "
+             << js["message"].get<string>()
+             << COLOR_RESET
+             << endl;
+    }
+    else
+    {
+        cout << COLOR_RED
+             << "[好友请求失败] "
+             << js["message"].get<string>()
+             << COLOR_RESET
+             << endl;
+    }
 }
         //普通响应
         else{
