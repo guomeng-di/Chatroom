@@ -242,16 +242,15 @@ else if(cmd==12){
 }
 //群聊历史
 else if(cmd==13){
-    string groupName;
-    cout<<"群名称:";
-    cin>>groupName;
-
-    json js;
-    js["msgid"]=GET_GROUP_HISTORY;
-    js["groupname"]=groupName;
-
-    string data=MessageCodec::encode(js.dump());
-    SocketUtil::sendAll(fd,data);
+ string groupName;
+ cout<<"群名称:";
+ cin>>groupName;
+ json js;
+ js["msgid"]=GET_GROUP_HISTORY;
+ js["groupname"]=groupName;
+ js["beforeId"]=0;
+ string data=MessageCodec::encode(js.dump());
+ SocketUtil::sendAll(fd,data);
 }
 //邀请用户进群
 else if(cmd==14){

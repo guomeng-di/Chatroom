@@ -162,16 +162,17 @@ string data=MessageCodec::encode(js.dump());
 }
 //私聊历史
 else if(cmd==9){
-string friendName;
-cout<<"好友:";
-cin>>friendName;
-
-json js;
-js["msgid"]=GET_PRIVATE_HISTORY;
-js["user1"]=username;
-js["user2"]=friendName;
-
-string data=MessageCodec::encode(js.dump());
+        string friendName;
+        cout<<"好友:";
+        cin>>friendName;
+        
+        json js;
+        js["msgid"]=GET_PRIVATE_HISTORY;
+        js["user1"]=username;
+        js["user2"]=friendName;
+        js["beforeId"]=0;
+        
+        string data=MessageCodec::encode(js.dump());
         SocketUtil::sendAll(fd,data);
 }
 }

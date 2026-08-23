@@ -42,81 +42,131 @@ else if(msgid==GROUP_CHAT_NOTIFY){
 }
 //私聊历史
 else if(msgid==GET_PRIVATE_HISTORY_ACK){
-            cout<<"\n";
-            cout<<COLOR_BLUE;
-            cout<<"+--------------------------------+"<<endl;
-            cout<<"|            私聊历史消息          |"<<endl;
-            cout<<"+--------------------------------+"<<endl;
-            cout<<COLOR_RESET;
-            if(js["errno"]==0){
-                for(auto& msg:js["messages"]){
-                    string from = msg["from"];
-                    string message = msg["message"];
-                    string time = msg["time"];
-                    string username=FileClient::instance().getUsername();
-                    cout<<"["<<time<<"] ";
-                    
-                    //自己发送
-                    if(from == username){
-                        cout<<COLOR_GREEN;
-                        cout<<"我";
-                        cout<<COLOR_RESET;
-                    }
-                    //好友发送
-                    else{
-                        cout<<COLOR_BLUE;
-                        cout<<from;
-                        cout<<COLOR_RESET;
-                    }
-                    cout<<" : ";
-                    cout<<message<<endl;
-                }
-            }else{
-                cout<<COLOR_RED;
-                cout<<"获取私聊历史失败: "<<js["message"]<<endl;
-                cout<<COLOR_RESET;
-            }
-            cout<<COLOR_BLUE;
-            cout<<"+--------------------------------+"<<endl;
-            cout<<COLOR_RESET;
-}       
+ cout<<"\n";
+ cout<<COLOR_BLUE;
+ cout<<"+--------------------------------+"<<endl;
+ cout<<"|            私聊历史消息          |"<<endl;
+ cout<<"+--------------------------------+"<<endl;
+ cout<<COLOR_RESET;
+
+ if(js["errno"]==0){
+  if(js["messages"].empty()){
+   cout<<COLOR_RED;
+   cout<<"没有更多聊天记录"<<endl;
+   cout<<COLOR_RESET;
+  }else{
+   for(auto& msg:js["messages"]){
+    string from=msg["from"];
+    string message=msg["message"];
+    string time=msg["time"];
+    string username=FileClient::instance().getUsername();
+    cout<<"["<<time<<"] ";
+    if(from==username){
+     cout<<COLOR_GREEN;
+     cout<<"我";
+     cout<<COLOR_RESET;
+    }else{
+     cout<<COLOR_BLUE;
+     cout<<from;
+     cout<<COLOR_RESET;
+    }
+    cout<<" : ";
+    cout<<message<<endl;
+   }
+
+   bool hasMore=js.value("hasMore",false);
+   long long nextBeforeId=js.value("nextBeforeId",0LL);
+
+   if(hasMore){
+    cout<<COLOR_BLUE;
+    cout<<"是否继续查询更早的聊天记录？(1.继续 0.返回):";
+    cout<<COLOR_RESET;
+    int choice;
+    cin>>choice;
+    if(choice==1){
+     json nextJs;
+     nextJs["msgid"]=GET_PRIVATE_HISTORY;
+     nextJs["beforeId"]=nextBeforeId;
+     nextJs["user1"]=js["user1"];
+     nextJs["user2"]=js["user2"];
+     string data=MessageCodec::encode(nextJs.dump());
+     SocketUtil::sendAll(fd,data);
+    }
+   }else{
+    cout<<COLOR_BLUE;
+    cout<<"已经没有更早的聊天记录了"<<endl;
+    cout<<COLOR_RESET;
+   }
+  }
+ }else{
+  cout<<COLOR_RED;
+  cout<<"获取私聊历史失败: "<<js["message"]<<endl;
+  cout<<COLOR_RESET;
+ }
+ cout<<COLOR_BLUE;
+ cout<<"+--------------------------------+"<<endl;
+ cout<<COLOR_RESET;
+}
 //群聊历史
 else if(msgid==GET_GROUP_HISTORY_ACK){
-    cout<<COLOR_BLUE;
-    cout<<"+--------------------------------+"<<endl;
-    cout<<"|          群聊历史消息          |"<<endl;
-    cout<<"+--------------------------------+"<<endl;
-    cout<<COLOR_RESET;
-
-    if(js["errno"]==0){
-        for(auto& msg:js["messages"]){
-
-            string from = msg["from"];
-            string message = msg["message"];
-            string time = msg["time"];
-            string username=FileClient::instance().getUsername();
-            cout<<"["<<time<<"] ";
-
-            if(from==username){
-                cout<<COLOR_GREEN;
-                cout<<"我";
-                cout<<COLOR_RESET;
-            }
-            else{
-                cout<<COLOR_BLUE;
-                cout<<from;
-                cout<<COLOR_RESET;
-            }
-            cout<<": "<<message<<endl;
-        }
+ cout<<COLOR_BLUE;
+ cout<<"+--------------------------------+"<<endl;
+ cout<<"|          群聊历史消息          |"<<endl;
+ cout<<"+--------------------------------+"<<endl;
+ cout<<COLOR_RESET;
+ if(js["errno"]==0){
+  if(js["messages"].empty()){
+   cout<<COLOR_RED;
+   cout<<"没有更多聊天记录"<<endl;
+   cout<<COLOR_RESET;
+  }else{
+   for(auto& msg:js["messages"]){
+    string from=msg["from"];
+    string message=msg["message"];
+    string time=msg["time"];
+    string username=FileClient::instance().getUsername();
+    cout<<"["<<time<<"] ";
+    if(from==username){
+     cout<<COLOR_GREEN;
+     cout<<"我";
+     cout<<COLOR_RESET;
     }else{
-        cout<<COLOR_RED;
-        cout<<"获取群聊历史失败: "<<js["message"]<<endl;
-        cout<<COLOR_RESET;
+     cout<<COLOR_BLUE;
+     cout<<from;
+     cout<<COLOR_RESET;
     }
+    cout<<": "<<message<<endl;
+   }
+   bool hasMore=js.value("hasMore",false);
+   long long nextBeforeId=js.value("nextBeforeId",0LL);
+   if(hasMore){
     cout<<COLOR_BLUE;
-    cout<<"+--------------------------------+"<<endl;
+    cout<<"是否继续查询更早的聊天记录？(1.继续 0.返回):";
     cout<<COLOR_RESET;
+    int choice;
+    cin>>choice;
+    if(choice==1){
+     json nextJs;
+     nextJs["msgid"]=GET_GROUP_HISTORY;
+     nextJs["groupname"]=js["groupname"];
+     nextJs["beforeId"]=nextBeforeId;
+     string data=MessageCodec::encode(nextJs.dump());
+     SocketUtil::sendAll(fd,data);
+    }
+   }else{
+    cout<<COLOR_BLUE;
+    cout<<"已经没有更早的聊天记录了"<<endl;
+    cout<<COLOR_RESET;
+   }
+  }
+ }else{
+  cout<<COLOR_RED;
+  cout<<"获取群聊历史失败: "<<js["message"]<<endl;
+  cout<<COLOR_RESET;
+ }
+ cout<<COLOR_BLUE;
+ cout<<"+--------------------------------+"<<endl;
+ cout<<COLOR_RESET;
 }
 //好友列表
 else if(msgid==FRIEND_LIST_ACK){
