@@ -18,10 +18,13 @@ public:
         static FileClient client;
         return client;
     }
-    void sendFile(int fd,int fileid,const std::string& filename,const std::string& target,const std::string& targetType,const std::string& groupname,long long offset);
+    void sendFile(int fd,int fileid,const std::string& filepath,const std::string& filename,const std::string& target,const std::string& targetType,const std::string& groupname,long long offset);
     void addPendingFile(const std::string& sender,const std::string& filename, long long size, const std::string& targetType,const std::string& groupname,int fileid);
 
     PendingFile getPendingFile(const std::string& sender,const std::string& filename);
+
+    void setSendFilePath(const std::string& targetType,const std::string& target,const std::string& filename,const std::string& filepath);
+    std::string getSendFilePath(const std::string& targetType,const std::string& target,const std::string& filename);
 
     void setUsername(const std::string& name);
 
@@ -40,6 +43,7 @@ private:
     std::string username_;
 
     std::map<std::string,PendingFile> pendingFiles_;
+    std::map<std::string,std::string> sendFilePaths_;
 
 
     std::mutex mutex_;

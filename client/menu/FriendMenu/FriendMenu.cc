@@ -5,6 +5,7 @@
 #include <sys/socket.h>
 #include "../../../protocol/MsgId.h"
 #include "../../../protocol/MessageCodec/MessageCodec.h"
+#include "../../../netlib/base/SocketUtil/SocketUtil.h"
 #include "../../ChatController/ChatController.h"
 #include "../Color.h"
 #include <nlohmann/json.hpp>
@@ -70,7 +71,7 @@ js["msgid"]=FRIEND_LIST_MSG;
 js["username"]=username;
 
 string data=MessageCodec::encode(js.dump());
-send(fd,data.data(),data.size(),0);
+        SocketUtil::sendAll(fd,data);
 }
 //删除好友
 else if(cmd==3){
@@ -84,7 +85,7 @@ js["username"]=username;
 js["friendname"]=name;
 
 string data=MessageCodec::encode(js.dump());
-send(fd,data.data(),data.size(),0);
+        SocketUtil::sendAll(fd,data);
 }
 //添加好友
 else if(cmd==4){
@@ -98,7 +99,7 @@ js["fromname"]=username;
 js["toname"]=name;
 
 string data=MessageCodec::encode(js.dump());
-send(fd,data.data(),data.size(),0);
+        SocketUtil::sendAll(fd,data);
 }
 //好友申请
 else if(cmd==5){
@@ -107,7 +108,7 @@ js["msgid"]=GET_FRIEND_REQUEST_MSG;
 js["username"]=username;
 
 string data=MessageCodec::encode(js.dump());
-send(fd,data.data(),data.size(),0);
+        SocketUtil::sendAll(fd,data);
 }
 //处理好友申请
 else if(cmd==6){
@@ -129,7 +130,7 @@ else if(cmd==6){
     js["action"]=action;
 
     string data=MessageCodec::encode(js.dump());
-    send(fd,data.data(),data.size(),0);
+        SocketUtil::sendAll(fd,data);
 }
 //屏蔽好友
 else if(cmd==7){
@@ -143,7 +144,7 @@ js["username"]=username;
 js["blockname"]=name;
 
 string data=MessageCodec::encode(js.dump());
-send(fd,data.data(),data.size(),0);
+        SocketUtil::sendAll(fd,data);
 }
 //解除屏蔽
 else if(cmd==8){
@@ -157,7 +158,7 @@ js["username"]=username;
 js["blockname"]=name;
 
 string data=MessageCodec::encode(js.dump());
-send(fd,data.data(),data.size(),0);
+        SocketUtil::sendAll(fd,data);
 }
 //私聊历史
 else if(cmd==9){
@@ -171,7 +172,7 @@ js["user1"]=username;
 js["user2"]=friendName;
 
 string data=MessageCodec::encode(js.dump());
-send(fd,data.data(),data.size(),0);
+        SocketUtil::sendAll(fd,data);
 }
 }
 }

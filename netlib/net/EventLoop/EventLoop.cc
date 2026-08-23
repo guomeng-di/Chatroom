@@ -77,9 +77,7 @@ void EventLoop::setTimerCallback(std::function<void()> cb){
 void EventLoop::addConnection(int fd,TcpConnection* conn){
     connections_[fd]=conn;
 }
-void EventLoop::removeConnection(int fd){
-        connections_.erase(fd);
-}
+
 void EventLoop::queueInLoop(std::function<void()> cb){
     {
         std::lock_guard<std::mutex> lock(mutex_);
@@ -88,18 +86,36 @@ void EventLoop::queueInLoop(std::function<void()> cb){
     wakeup();
 }
 void EventLoop::checkConnectionTimeout(){
+    cout<<"========== CHECK CONNECTION TIMEOUT =========="<<endl;
+    cout<<"EventLoop this="<<this<<endl;
+    cout<<"threadId="<<threadId_<<endl;
+    cout<<"connections size="<<connections_.size()<<endl;
+
     vector<int> timeoutFds;
+
     for(auto& item:connections_){
         TcpConnection* conn=item.second;
-        if(conn->isTimeout()) timeoutFds.push_back(item.first);
+        cout<<"connection fd="<<item.first<<" username="<<conn->getUsername()<<endl;
+
+        if(conn->isTimeout()){
+            cout<<"========== CONNECTION TIMEOUT =========="<<endl;
+            cout<<"fd="<<item.first<<endl;
+            cout<<"username="<<conn->getUsername()<<endl;
+            cout<<"========================================"<<endl;
+            timeoutFds.push_back(item.first);
+        }
     }
+
     for(int fd:timeoutFds){
         auto it=connections_.find(fd);
         if(it!=connections_.end()){
             TcpConnection* conn=it->second;
+            cout<<"[TIMEOUT] calling handleClose fd="<<fd<<" username="<<conn->getUsername()<<endl;
             conn->handleClose();
         }
     }
+
+    cout<<"=============================================="<<endl;
 }
 void EventLoop::deleteConnection(int fd){
     auto it=connections_.find(fd);

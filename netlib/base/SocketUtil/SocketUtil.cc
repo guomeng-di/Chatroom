@@ -4,10 +4,13 @@
 #include <cstring>
 #include "../Logger.h"
 #include <iostream>
+#include <mutex>
 
 using namespace std;
 
 bool SocketUtil::sendAll(int fd, const string& data){
+    static mutex sendMutex;
+    lock_guard<mutex> lock(sendMutex);
     size_t total = 0;
     while(total < data.size()){
         ssize_t n = send(fd,data.data() + total,data.size() - total,MSG_NOSIGNAL);

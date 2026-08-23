@@ -1,6 +1,7 @@
 #include "ChatController.h"
 #include "../../protocol/MsgId.h"
 #include "../../protocol/MessageCodec/MessageCodec.h"
+#include "../../netlib/base/SocketUtil/SocketUtil.h"
 #include <iostream>
 #include "../menu/Color.h"
 #include <unistd.h>
@@ -54,8 +55,8 @@ cout<<COLOR_RESET;
         js["message"]=message;
 
         string data=MessageCodec::encode(js.dump());
-        int ret=send(fd,data.data(),data.size(),0);
-        if(ret<=0){
+        bool ret=SocketUtil::sendAll(fd,data);
+        if(!ret){
             cout<<"发送失败"<<endl;
             break;
         }
@@ -107,8 +108,8 @@ void ChatController::groupChat(int fd,const string& username){
         js["message"]=message;
 
         string data=MessageCodec::encode(js.dump());
-        int ret=send(fd,data.data(),data.size(),0);
-        if(ret<=0){
+        bool ret=SocketUtil::sendAll(fd,data);
+        if(!ret){
             cout<<"发送失败"<<endl;
             break;
         }

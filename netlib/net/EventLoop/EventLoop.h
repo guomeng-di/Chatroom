@@ -28,7 +28,6 @@ class EventLoop{
 
       
       void addConnection(int fd,TcpConnection* conn);
-      void removeConnection(int fd);
       void deleteConnection(int fd);
       void queueInLoop(std::function<void()> cb);
       void checkConnectionTimeout();

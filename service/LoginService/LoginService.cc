@@ -57,52 +57,170 @@ json LoginService::login(const json& js,TcpConnection* conn){
             notify["message"] = request.from + " 请求添加你为好友";
 
             conn->send(notify.dump());
-        }
-        //登录后读取离线消息
-        if(RedisManager::instance().connect()){
-            vector<string> messages =RedisManager::instance().getOfflineMessage(username);
-            Logger::instance().info(username+" offline private message count="+to_string(messages.size()));
-            for(auto& msg:messages){
-                json offlineMsg;
-                offlineMsg["msgid"]=OFFLINE_MSG;
-                offlineMsg["message"]=msg;
-                conn->send(offlineMsg.dump());
-            }
-            RedisManager::instance().clearOfflineMessage(username);
-        }
+        }// 登录后读取离线私聊消息
+cout << "\n========== LOGIN STEP 1 ==========" << endl;
+cout << "before getOfflineMessage, username=" << username << endl;
 
-        //读取群聊离线消息
-        if(RedisManager::instance().connect()){
-            vector<string> messages =RedisManager::instance().getGroupOfflineMessage(username);
-            for(auto& msg:messages){
-                json offlineMsg;
-                offlineMsg["msgid"]=GROUP_OFFLINE_NOTIFY;
-                offlineMsg["message"]=msg;
-                conn->send(offlineMsg.dump());
-            }
-            RedisManager::instance().clearGroupOfflineMessage(username);
-        }
+if(RedisManager::instance().connect()){
+    vector<string> messages =
+        RedisManager::instance().getOfflineMessage(username);
 
-        //读取离线时发送文件申请
-        if(RedisManager::instance().connect()){
-            vector<string> files =RedisManager::instance().getOfflineFile(username);
-            for(auto& file:files){
-                json fileInfo=json::parse(file);
-                fileInfo["msgid"]=FILE_REQUEST_NOTIFY;
-                conn->send(fileInfo.dump());
-            }
-            RedisManager::instance().clearOfflineFiles(username);
-        }
+    cout << "after getOfflineMessage" << endl;
+    cout << "private offline message count="
+         << messages.size() << endl;
 
-        //读取未完成文件
-    FileModel fileModel;
-    vector<string> files =fileModel.getUnfinishedFiles(username);
-    for(auto& file:files){
-        json fileInfo=json::parse(file);
-        fileInfo["msgid"]=FILE_RESUME_NOTIFY;
-        //fileInfo["resume"]=true;
-        conn->send(fileInfo.dump());
+    for(auto& msg : messages){
+        json offlineMsg;
+        offlineMsg["msgid"] = OFFLINE_MSG;
+        offlineMsg["message"] = msg;
+        conn->send(offlineMsg.dump());
     }
+
+    RedisManager::instance().clearOfflineMessage(username);
+}
+
+cout << "========== LOGIN STEP 1 END ==========" << endl;
+
+
+// ===============================
+// 离线群聊
+// ===============================
+
+cout << "\n========== LOGIN STEP 2 ==========" << endl;
+cout << "before getGroupOfflineMessage, username="
+     << username << endl;
+
+if(RedisManager::instance().connect()){
+    vector<string> messages =
+        RedisManager::instance().getGroupOfflineMessage(username);
+
+    cout << "after getGroupOfflineMessage" << endl;
+    cout << "group offline message count="
+         << messages.size() << endl;
+
+    for(auto& msg : messages){
+        json offlineMsg;
+        offlineMsg["msgid"] = GROUP_OFFLINE_NOTIFY;
+        offlineMsg["message"] = msg;
+        conn->send(offlineMsg.dump());
+    }
+
+    RedisManager::instance().clearGroupOfflineMessage(username);
+}
+
+cout << "========== LOGIN STEP 2 END ==========" << endl;
+
+
+// ===============================
+// 离线文件申请
+// ===============================
+
+cout << "\n========== LOGIN STEP 3 ==========" << endl;
+cout << "before getOfflineFile, username="
+     << username << endl;
+
+if(RedisManager::instance().connect()){
+
+    vector<string> files =
+        RedisManager::instance().getOfflineFile(username);
+
+    cout << "after getOfflineFile" << endl;
+    cout << "offline file count="
+         << files.size() << endl;
+
+    for(auto& file : files){
+
+        cout << "raw offline file="
+             << file
+             << endl;
+
+        try{
+
+            json fileInfo = json::parse(file);
+
+            cout << "parsed offline file type="
+                 << fileInfo.type_name()
+                 << endl;
+
+            cout << "parsed offline file="
+                 << fileInfo.dump()
+                 << endl;
+
+            if(!fileInfo.is_object()){
+                cout << "ERROR: offline file is NOT object!"
+                     << endl;
+                continue;
+            }
+
+            conn->send(fileInfo.dump());
+
+        }catch(const exception& e){
+
+            cout << "ERROR parsing offline file: "
+                 << e.what()
+                 << endl;
+
+            cout << "bad offline file data="
+                 << file
+                 << endl;
+        }
+    }
+
+    RedisManager::instance().clearOfflineFiles(username);
+}
+
+cout << "========== LOGIN STEP 3 END ==========" << endl;
+
+
+// ===============================
+// 未完成文件
+// ===============================
+
+cout << "\n========== LOGIN STEP 4 ==========" << endl;
+cout << "before getUnfinishedFiles, username="
+     << username
+     << endl;
+
+FileModel fileModel;
+
+vector<string> files =
+    fileModel.getUnfinishedFiles(username);
+
+cout << "after getUnfinishedFiles" << endl;
+
+cout << "unfinished file count="
+     << files.size()
+     << endl;
+
+for(auto& file : files){
+
+    cout << "raw unfinished file="
+         << file
+         << endl;
+
+    json fileInfo = json::parse(file);
+
+    cout << "unfinished file type="
+         << fileInfo.type_name()
+         << endl;
+
+    if(!fileInfo.is_object()){
+        cout << "ERROR: unfinished file is NOT object!"
+             << endl;
+        continue;
+    }
+
+    fileInfo["msgid"] = FILE_RESUME_NOTIFY;
+
+    cout << "resume notify="
+         << fileInfo.dump()
+         << endl;
+
+    conn->send(fileInfo.dump());
+}
+
+cout << "========== LOGIN STEP 4 END ==========" << endl;
+
     }else{
 
         Logger::instance().error(username+" login failed");

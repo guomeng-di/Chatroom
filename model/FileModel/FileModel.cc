@@ -7,19 +7,37 @@ using namespace std;
 typedef long long ll;
 FileModel::FileModel(){}
 FileModel::~FileModel(){}
-bool FileModel::saveFileInfo(const string& from,const string& to,const string& groupname,const string& targetType,const string& filename,ll filesize){
+bool FileModel::saveFileInfo(const string& from,const string& to,const string& groupname,const string& targetType,const string& filename,ll filesize,const string& filepath){
     MySQLManager mysql;
-    if(!mysql.connect()){ 
-        Logger::instance().error("file mysql connect failed");
-        return 0;
+    if(!mysql.connect()){
+        cout<<"file mysql connect failed"<<endl;
+        return false;
     }
-    string sql="insert into file_info(""fromname,""toname,""groupname,""targetType,""filename,""filesize"") values('"+from+"','"+to+"','"+groupname+"','"+targetType+"','"+filename+"',"+to_string(filesize)+")";
-    
+    MYSQL* conn=mysql.getConnection();
+    if(conn==nullptr){
+        cout<<"mysql connection is null"<<endl;
+        return false;
+    }
+    auto escape=[conn](const string& input){
+        string output;
+        output.resize(input.size()*2+1);
+        unsigned long len=mysql_real_escape_string(conn,&output[0],input.c_str(),input.size());
+        output.resize(len);
+        return output;
+    };
+    string safeFrom=escape(from);
+    string safeTo=escape(to);
+    string safeGroupname=escape(groupname);
+    string safeTargetType=escape(targetType);
+    string safeFilename=escape(filename);
+    string safeFilepath=escape(filepath);
+    string sql="insert into file_info (fromname,toname,groupname,targetType,filename,filepath,filesize) values ('"+safeFrom+"','"+safeTo+"','"+safeGroupname+"','"+safeTargetType+"','"+safeFilename+"','"+safeFilepath+"',"+to_string(filesize)+")";
+    cout<<"save file info SQL:"<<sql<<endl;
     if(mysql.execute(sql)){
-        Logger::instance().info("save file info success");
+        cout<<"save file info success"<<endl;
         return true;
     }
-    Logger::instance().error( "save file info failed");
+    cout<<"save file info failed"<<endl;
     return false;
 }
 
@@ -193,14 +211,26 @@ bool FileModel::saveFileReceiver(
 
 
 
+    MYSQL* conn=mysql.getConnection();
+    if(conn==nullptr)
+        return false;
+
+    string safeReceiver;
+    safeReceiver.resize(receiver.size()*2+1);
+    unsigned long len=mysql_real_escape_string(
+        conn,
+        &safeReceiver[0],
+        receiver.c_str(),
+        receiver.size()
+    );
+    safeReceiver.resize(len);
+
+    // 重复接受同一个文件时保持原有接收进度，不重复插入记录。
     string sql =
-    "insert into file_receiver"
-    "(fileid,receiver,status,received_size)"
-    " values("
-    +to_string(fileid)
-    +",'"
-    +receiver
-    +"',0,0)";
+    "insert into file_receiver(fileid,receiver,status,received_size) "
+    "select " + to_string(fileid) + ",'" + safeReceiver + "',0,0 "
+    "where not exists (select 1 from file_receiver where fileid="
+    + to_string(fileid) + " and receiver='" + safeReceiver + "')";
 
 
 
@@ -327,34 +357,63 @@ bool FileModel::checkAllReceiverFinish(int fileid){
     if(unfinished==0)return true;
     return false;
 }
-vector<string> FileModel::getUnfinishedFiles(const string& username){
+vector<string> FileModel::getUnfinishedFiles(const string& username)
+{
     vector<string> files;
+
     MySQLManager mysql;
+
     if(!mysql.connect()){
         Logger::instance().error("mysql connect failed");
         return files;
     }
+
     string sql =
-"select fromname,filename,filesize "
-"from file_info "
-"where toname='"+username+"' "
-"and status=1";
-    //string sql ="select fromname,filename,filesize ""from file_info ""where toname='"+ username +"' and status!=2";
-    MYSQL_RES* res =mysql.query(sql);
-    if(res==nullptr){
-        Logger::instance().error("query unfinished files failed" );
+        "select id,fromname,filename,filesize "
+        "from file_info "
+        "where toname='"+username+"' "
+        "and targetType='user' "
+        "and status=1";
+
+    cout << "========== GET UNFINISHED FILES ==========" << endl;
+    cout << "username=" << username << endl;
+    cout << "sql=" << sql << endl;
+
+    MYSQL_RES* res = mysql.query(sql);
+
+    if(res == nullptr){
+        Logger::instance().error("query unfinished files failed");
+        cout << "query unfinished files failed" << endl;
+        cout << "==========================================" << endl;
         return files;
     }
+
     MYSQL_ROW row;
-    while((row=mysql_fetch_row(res))){
+
+    while((row = mysql_fetch_row(res)))
+    {
         json js;
-        js["fromname"] = row[0];
-        js["filename"] = row[1];
-        js["filesize"] = atoll(row[2]);
+
+        js["fileid"] = atoi(row[0]);
+        js["fromname"] = row[1];
+        js["filename"] = row[2];
+        js["filesize"] = atoll(row[3]);
+
+        cout << "unfinished file:"
+             << js.dump()
+             << endl;
 
         files.push_back(js.dump());
     }
+
     mysql_free_result(res);
+
+    cout << "unfinished file count="
+         << files.size()
+         << endl;
+
+    cout << "==========================================" << endl;
+
     return files;
 }
 
@@ -411,4 +470,114 @@ int FileModel::getUnfinishedFileId(
     return -1;
 }
 
+bool FileModel::getUnfinishedFileInfo(
+    const string& receiver,
+    const string& filename,
+    string& fromname,
+    int& fileid,
+    long long& filesize)
+{
+    MySQLManager mysql;
+    if(!mysql.connect()){
+        Logger::instance().error("mysql connect failed");
+        return false;
+    }
 
+    MYSQL* conn = mysql.getConnection();
+    if(conn == nullptr){
+        Logger::instance().error("mysql connection is null");
+        return false;
+    }
+
+    auto escape = [conn](const string& input){
+        string output;
+        output.resize(input.size() * 2 + 1);
+        unsigned long len = mysql_real_escape_string(
+            conn,
+            &output[0],
+            input.c_str(),
+            input.size()
+        );
+        output.resize(len);
+        return output;
+    };
+
+    string safeReceiver = escape(receiver);
+    string safeFilename = escape(filename);
+
+    string sql =
+        "select id, fromname, filesize "
+        "from file_info "
+        "where toname='"+safeReceiver+"' "
+        "and filename='"+safeFilename+"' "
+        "and targetType='user' "
+        "and status=1 "
+        "order by id desc limit 1";
+
+    MYSQL_RES* res = mysql.query(sql);
+    if(res == nullptr){
+        Logger::instance().error("query unfinished file info failed");
+        return false;
+    }
+
+    MYSQL_ROW row = mysql_fetch_row(res);
+    if(row == nullptr){
+        mysql_free_result(res);
+        return false;
+    }
+
+    fileid = atoi(row[0]);
+    fromname = row[1];
+    filesize = atoll(row[2]);
+
+    mysql_free_result(res);
+    return true;
+}
+string FileModel::getFilePath(int fileid){
+    MySQLManager mysql;
+    if(!mysql.connect()){
+        cout<<"get file path mysql connect failed"<<endl;
+        return "";
+    }
+    string sql="select filepath from file_info where id="+to_string(fileid);
+    cout<<"getFilePath SQL:"<<sql<<endl;
+    MYSQL_RES* res=mysql.query(sql);
+    if(res==nullptr){
+        cout<<"get file path query failed"<<endl;
+        return "";
+    }
+    MYSQL_ROW row=mysql_fetch_row(res);
+    if(row==nullptr){
+        mysql_free_result(res);
+        cout<<"file path not found, fileid="<<fileid<<endl;
+        return "";
+    }
+    string filepath=row[0]?row[0]:"";
+    mysql_free_result(res);
+    cout<<"fileid="<<fileid<<" filepath="<<filepath<<endl;
+    return filepath;
+}
+bool FileModel::updateFilePath(int fileid,const string& filepath){
+    MySQLManager mysql;
+    if(!mysql.connect()){
+        cout<<"update file path mysql connect failed"<<endl;
+        return false;
+    }
+    MYSQL* conn=mysql.getConnection();
+    if(conn==nullptr){
+        cout<<"mysql connection is null"<<endl;
+        return false;
+    }
+    string safePath;
+    safePath.resize(filepath.size()*2+1);
+    unsigned long len=mysql_real_escape_string(conn,&safePath[0],filepath.c_str(),filepath.size());
+    safePath.resize(len);
+    string sql="update file_info set filepath='"+safePath+"' where id="+to_string(fileid);
+    cout<<"updateFilePath SQL:"<<sql<<endl;
+    if(mysql.execute(sql)){
+        cout<<"update file path success"<<endl;
+        return true;
+    }
+    cout<<"update file path failed"<<endl;
+    return false;
+}

@@ -1,6 +1,7 @@
 #include "AccountMenu.h"
 #include "../../../protocol/MessageCodec/MessageCodec.h"
 #include "../../../protocol/MsgId.h"
+#include "../../../netlib/base/SocketUtil/SocketUtil.h"
 #include "../MainMenu/MainMenu.h"
 #include "../Color.h"
 #include <nlohmann/json.hpp>
@@ -15,7 +16,7 @@ bool AccountMenu::sendVerifyCode(int fd,const string& email){
     js["email"]=email;
 
     string data=MessageCodec::encode(js.dump());
-    send(fd,data.data(),data.size(),0);
+    SocketUtil::sendAll(fd,data);
     return true;
 }
 void AccountMenu::run(int fd,const string& username){
@@ -64,7 +65,7 @@ else if(cmd==1){
     js["username"]=username;
 
     string data=MessageCodec::encode(js.dump());
-    send(fd,data.data(),data.size(),0);
+    SocketUtil::sendAll(fd,data);
     cout<<"退出登录成功"<<endl;
     exit(0);
 }
@@ -80,7 +81,7 @@ else if(cmd==2){
     js["password"]=password;
 
     string data=MessageCodec::encode(js.dump());
-    send(fd,data.data(),data.size(),0);
+    SocketUtil::sendAll(fd,data);
     cout<<"注销请求已发送"<<endl;
     exit(0);
 }
@@ -109,7 +110,7 @@ else if(cmd==3){
     js["password"]=password;
 
     string data=MessageCodec::encode(js.dump());
-    send(fd,data.data(),data.size(),0);
+    SocketUtil::sendAll(fd,data);
     cout<<"修改密码请求已发送"<<endl;
 }
 }

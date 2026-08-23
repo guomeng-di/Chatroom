@@ -1,6 +1,7 @@
 #include "ClientMessageHandler.h"
 #include "../../protocol/MsgId.h"
 #include "../FileClient/FileClient.h"
+#include "../../netlib/base/SocketUtil/SocketUtil.h"
 #include <sys/socket.h>
 #include <fstream>
 #include <filesystem>
@@ -351,7 +352,7 @@ else if(msgid==GET_GROUP_REQUEST_ACK){
     }
 }
 //心跳检测
-        else if(msgid==HEARTBEAT_ACK){
+        else if(msgid == HEARTBEAT_ACK){
             //  cout<<"\n==========心跳检测=========="<<endl;
             //  cout<<"heartbeat success"<<endl;
             //  cout<<"============================"<<endl;
@@ -444,6 +445,7 @@ else if(msgid==REMOVE_BLOCK_ACK){
             file.sender=fromname;
             file.filename=filename;
             file.filesize=filesize;
+            if(js.contains("fileid")) file.fileid=js["fileid"];
 
             //判断普通文件还是群文件
             if(js.contains("targetType")&&js["targetType"]=="group"){
@@ -466,21 +468,27 @@ else if(msgid==REMOVE_BLOCK_ACK){
         return;
     }
     string receiver=js["receiver"];
-    // string receiver = js["fromname"];
-    string sender =FileClient::instance().getUsername();
     string filename = js["filename"];
     int fileid = js["fileid"];
 
-
-    cout<<"start send file"<<endl;
-    string target=receiver;
     string targetType="user";
     string groupname="";
     if(js.contains("targetType")) targetType=js["targetType"];
-    if(targetType=="group") groupname=js["groupname"];
+    if(targetType=="group" && js.contains("groupname")) groupname=js["groupname"];
+    string targetKey = (targetType == "group") ? groupname : receiver;
+    if(js.contains("filepath") && js["filepath"].is_string()){
+        FileClient::instance().setSendFilePath(
+            targetType, targetKey, filename, js["filepath"].get<string>());
+    }
+    string filepath = FileClient::instance().getSendFilePath(targetType,targetKey,filename);
+    if(filepath.empty()){
+        cout << "file path not found for " << filename << endl;
+        return;
+    }
     long long offset=0;
-    if(!js.contains("received_size")) offset=js["received_size"];
-     FileClient::instance().sendFile(fd,fileid,filename,target,targetType,groupname,offset);
+    if(js.contains("received_size")) offset=js["received_size"];
+    cout<<"start send file"<<endl;
+     FileClient::instance().sendFile(fd,fileid,filepath,filename,receiver,targetType,groupname,offset);
 }
 
 
@@ -500,6 +508,17 @@ else if(msgid==REMOVE_BLOCK_ACK){
             if(js.contains("message")) cout<<js["message"]<<endl;
             cout<<"===================="<<endl;
 }
+else if(msgid==FILE_RESUME_REPLY){
+    cout<<"==========断点查询结果=========="<<endl;
+    if(js.contains("errno") && js["errno"]!=0){
+        cout<<"query resume failed: "<<js.value("message","")<<endl;
+    }else{
+        cout<<"received_size="<<js.value("received_size",0LL)<<endl;
+        cout<<"filename="<<js.value("filename","")<<endl;
+        cout<<"fileid="<<js.value("fileid",-1)<<endl;
+    }
+    cout<<"=============================="<<endl;
+}
 else if(msgid==FILE_RESUME_NOTIFY){
     cout<<"发现未完成文件"<<endl;
     json query;
@@ -507,8 +526,9 @@ else if(msgid==FILE_RESUME_NOTIFY){
     query["sender"]=js["fromname"];
     query["receiver"]=FileClient::instance().getUsername();
     query["filename"]=js["filename"];
+    if(js.contains("fileid")) query["fileid"] = js["fileid"];
     string data=MessageCodec::encode(query.dump());
-    send(fd,data.data(),data.size(),0);
+    SocketUtil::sendAll(fd,data);
 }
         //离线后上线文件恢复
         else if(msgid==FILE_RESUME_SEND){
@@ -527,14 +547,19 @@ else if(msgid==FILE_RESUME_NOTIFY){
             cout << "receiver=" << receiver << endl;
             cout<<"already receive size="<<offset<<endl;
             cout<<"开始断点续传..."<<endl;
-            //不能直接调用sendFile(),因为当前线程负责接收ACK
-            //sendFile()会waitForBlock阻塞当前线程
-            std::thread sendThread([&fd,fileid,filename,receiver,offset](){
-                FileClient::instance().sendFile(fd,fileid,filename,receiver,"user","",offset);
+            string targetType = js.value("targetType","user");
+            string groupname = js.value("groupname","");
+            string targetKey = (targetType=="group") ? groupname : receiver;
+            if(js.contains("filepath") && js["filepath"].is_string()){
+                FileClient::instance().setSendFilePath(
+                    targetType, targetKey, filename, js["filepath"].get<string>());
             }
-        );
-            sendThread.detach();
-            // FileClient::instance().sendFile(fd,fileid,filename,receiver,"user","",blocks);
+            string filepath = FileClient::instance().getSendFilePath(targetType,targetKey,filename);
+            if(filepath.empty()){
+                cout<<"没有找到待发送文件路径"<<endl;
+                return;
+            }
+            FileClient::instance().sendFile(fd,fileid,filepath,filename,receiver,targetType,groupname,offset);
             cout << "============================" << endl;
         }
 

@@ -3,11 +3,13 @@
 #include "../../../protocol/MsgId.h"
 #include "../../FileClient/FileClient.h"
 #include "../../../netlib/base/Logger.h"
+#include "../../../netlib/base/SocketUtil/SocketUtil.h"
 #include "../../../src/config.h"
 #include "../Color.h"
 #include <nlohmann/json.hpp>
 #include <iostream>
 #include <fstream>
+#include <filesystem>
 #include <limits>
 #include <sys/socket.h>
 using namespace std;
@@ -54,15 +56,22 @@ else if(cmd==1){
     cout<<"1. 用户"<<endl;
     cout<<"2. 群聊"<<endl;
     cout<<"选择:";
-
     cin>>type;
     string target;
-    string filename;
-    cout<<"文件名:";
+    string filepath;
+    cout<<"文件路径:";
     cin.ignore(numeric_limits<streamsize>::max(),'\n');
-    cin>>filename;
-
-    string filepath=FILE_ROOT+filename;
+    getline(cin,filepath);
+    if(filepath.empty()){
+        cout<<"文件路径不能为空"<<endl;
+        continue;
+    }
+    filesystem::path path(filepath);
+    string filename=path.filename().string();
+    if(filename.empty()){
+        cout<<"文件名无效"<<endl;
+        continue;
+    }
     ifstream file(filepath,ios::binary);
     if(!file.is_open()){
         cout<<"文件不存在"<<endl;
@@ -71,33 +80,51 @@ else if(cmd==1){
     file.seekg(0,ios::end);
     long long filesize=file.tellg();
     file.close();
-
+    if(filesize<0){
+        cout<<"无法获取文件大小"<<endl;
+        continue;
+    }
     json js;
     js["msgid"]=SEND_FILE_REQUEST_MSG;
     js["fromname"]=username;
     js["filename"]=filename;
     js["filesize"]=filesize;
-
+    js["filepath"]=filepath;
+    string targetType;
     if(type==1){
         cout<<"用户名:";
         cin>>target;
-
-        js["targetType"]="user";
+        if(target.empty()){
+            cout<<"用户名不能为空"<<endl;
+            continue;
+        }
+        targetType="user";
+        js["targetType"]=targetType;
         js["toname"]=target;
     }else if(type==2){
         cout<<"群名称:";
         cin>>target;
-
-        js["targetType"]="group";
+        if(target.empty()){
+            cout<<"群名称不能为空"<<endl;
+            continue;
+        }
+        targetType="group";
+        js["targetType"]=targetType;
         js["groupname"]=target;
     }else{
         cout<<"类型错误"<<endl;
         continue;
     }
-
+    FileClient::instance().setSendFilePath(targetType,target,filename,filepath);
     string data=MessageCodec::encode(js.dump());
-    send(fd,data.data(),data.size(),0);
-    cout<<"文件发送请求成功"<<endl;
+    if(!SocketUtil::sendAll(fd,data)){
+        cout<<"文件发送请求失败"<<endl;
+        continue;
+    }
+    cout<<"文件发送请求已发送"<<endl;
+    cout<<"文件名: "<<filename<<endl;
+    cout<<"文件大小: "<<filesize<<" bytes"<<endl;
+    cout<<"发送对象: "<<target<<endl;
 }
 
 
@@ -151,6 +178,7 @@ else if(cmd==2)
     js["fromname"]=fromname;
 
     js["filename"]=filename;
+    js["fileid"]=file.fileid;
 
 
 
@@ -184,7 +212,7 @@ else if(cmd==2)
     MessageCodec::encode(js.dump());
 
 
-    send(fd,data.data(),data.size(),0);
+    SocketUtil::sendAll(fd,data);
 
 
     cout<<"文件接收请求已发送"<<endl;

@@ -8,7 +8,7 @@ class OnlineUserManager{
       static OnlineUserManager& instance();
 
       void addUser(const std::string& username,TcpConnection* conn);//添加在线用户
-      void removeUser(const std::string& username);//删除在线用户
+      bool removeUser(const std::string& username, TcpConnection* conn = nullptr);//删除在线用户
       TcpConnection* getConnection(const std::string& username);//根据用户名找到连接
       bool isOnline(const std::string& username);//判断好友在线状态
     private:

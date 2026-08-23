@@ -37,76 +37,89 @@ TcpConnection::~TcpConnection(){
 void TcpConnection::handleRead(){
     Logger::instance().info("TcpConnection handleRead called");
     char buf[1024*4];
-while(1){
-    int n=recv(fd_,buf,sizeof(buf),0);
-    if(n>0){
-   
-    //登录、聊天、好友操作都会刷新活跃时间
-    updateActiveTime();
-    Logger::instance().info("recv bytes="+to_string(n));
-
-    string recvData(buf,n);
-    buffer_.append(buf,n);
-
-    while(buffer_.hasMessage()){ 
-        string msg=buffer_.retrieveMessage();
-        int msgid=MessageCodec::getMsgId(msg);
-        try{
-            if(msgid==FILE_DATA_MSG){
-                FilePacket packet= MessageCodec::decodeBinary(msg);
-                FileService::receiveFileData(packet,this);
-            }else{
-                json js=JsonProtocol::decode(msg);
-                MessageDispatcher::dispatch(js,this);
+    while(1){
+        int n=recv(fd_,buf,sizeof(buf),0);
+        if(n>0){
+            updateActiveTime();
+            Logger::instance().info("recv bytes="+to_string(n));
+            buffer_.append(buf,n);
+            while(buffer_.hasMessage()){
+                string msg=buffer_.retrieveMessage();
+                int msgid=MessageCodec::getMsgId(msg);
+                cout<<"========== SERVER RECEIVE MESSAGE =========="<<endl;
+                cout<<"fd="<<fd_<<endl;
+                cout<<"username="<<username_<<endl;
+                cout<<"msgid="<<msgid<<endl;
+                cout<<"message size="<<msg.size()<<endl;
+                if(msgid==FILE_DATA_MSG){
+                    cout<<"message type=FILE_DATA_MSG"<<endl;
+                }else{
+                    try{
+                        json debugJson=JsonProtocol::decode(msg);
+                        cout<<"json="<<debugJson.dump(4)<<endl;
+                    }catch(const exception& e){
+                        cout<<"json decode debug failed: "<<e.what()<<endl;
+                    }
+                }
+                cout<<"============================================"<<endl;
+                try{
+                    if(msgid==FILE_DATA_MSG){
+                        FilePacket packet=MessageCodec::decodeBinary(msg);
+                        cout<<"========== FILE DATA =========="<<endl;
+                        cout<<"fd="<<fd_<<endl;
+                        cout<<"username="<<username_<<endl;
+                        cout<<"file msgid="<<msgid<<endl;
+                        cout<<"================================"<<endl;
+                        FileService::receiveFileData(packet,this);
+                    }else{
+                        json js=JsonProtocol::decode(msg);
+                        MessageDispatcher::dispatch(js,this);
+                    }
+                }catch(const exception& e){
+                    cout<<"========== MESSAGE EXCEPTION =========="<<endl;
+                    cout<<"fd="<<fd_<<endl;
+                    cout<<"username="<<username_<<endl;
+                    cout<<"msgid="<<msgid<<endl;
+                    cout<<"message size="<<msg.size()<<endl;
+                    cout<<"error="<<e.what()<<endl;
+                    cout<<"======================================="<<endl;
+                    handleClose();
+                    return;
+                }
             }
-        }catch(const exception& e){
-             Logger::instance() .error(string("message error:")+e.what());
-             handleClose();
-             return;
+            if(buffer_.hasError()){
+                cout<<"========== BUFFER ERROR =========="<<endl;
+                cout<<"fd="<<fd_<<endl;
+                cout<<"username="<<username_<<endl;
+                cout<<"=================================="<<endl;
+                handleClose();
+                return;
             }
-        }
-
-        if(buffer_.hasError()){
-            Logger::instance().error("invalid packet size");
-            handleClose();
-            return ;
-        }
-}else if(n==0){
-            //客户端关闭连接
+        }else if(n==0){
+            cout<<"========== CLIENT CLOSED SOCKET =========="<<endl;
+            cout<<"fd="<<fd_<<endl;
+            cout<<"username="<<username_<<endl;
+            cout<<"recv returned 0"<<endl;
+            cout<<"=========================================="<<endl;
             handleClose();
             return;
-}else{//n<0
-    if(errno==EAGAIN ||errno==EWOULDBLOCK) break;//非阻塞正常情况
-    if(errno==EINTR) continue; //信号打断，继续读
-    Logger::instance().error("recv error");
-    handleClose();
-    return;
-
-        // if(msgid==FILE_DATA_MSG){
-        //     //FileService::receiveFileData(msg,this);
-
-        //     FilePacket packet=MessageCodec::decodeBinary(msg);
-        //     cout<<"receive file block"<<endl;
-        //     cout<<"filename="<<packet.info["filename"]<<endl;
-        //     cout<<"blockid="<<packet.info["blockid"]<<endl;
-        //     cout<<"data size="<<packet.data.size()<<endl;
-
-        //     FileService::receiveFileData(packet,this);
-
-
-        // }else{
-        //     json js=JsonProtocol::decode(msg);
-        //     MessageDispatcher::dispatch(js,this);
-        // }
-//     }
-// }else if(n==0) handleClose();
-//     else{
-//         //perror("recv");
-//         Logger::instance().error("recv failed");
-//         handleClose();
-//     }
-}
-}
+        }else{
+            if(errno==EAGAIN || errno==EWOULDBLOCK){
+                break;
+            }
+            if(errno==EINTR){
+                continue;
+            }
+            cout<<"========== RECV ERROR =========="<<endl;
+            cout<<"fd="<<fd_<<endl;
+            cout<<"username="<<username_<<endl;
+            cout<<"errno="<<errno<<endl;
+            cout<<"error="<<strerror(errno)<<endl;
+            cout<<"==============================="<<endl;
+            handleClose();
+            return;
+        }
+    }
 }
 void TcpConnection::send(const string& msg){
     Logger::instance().info("TcpConnection send");
@@ -120,34 +133,58 @@ void TcpConnection::send(const string& msg){
 }
 bool TcpConnection::sendBinary(const string& msg){
     Logger::instance().info("TcpConnection send binary");
-    //int n=::send(fd_,data.c_str(),data.size(),0);
-    bool ok=SocketUtil::sendAll(fd_,msg);
-    if(!ok){
-        Logger::instance().error("send failed");
-        return 0;
-    }
-    Logger::instance().info("send success");
-    return 1;
+    // 二进制文件包也进入连接所属 EventLoop 的发送缓冲，避免和普通消息
+    // 直接并发写 socket 导致协议包交错。
+    loop_->queueInLoop(
+        [this,msg](){
+            outputBuffer_.append(msg.data(),msg.size());
+            channel_->enableWriting();
+        }
+    );
+    return true;
 }
 void TcpConnection::handleClose(){
-    Logger::instance().info("client close fd="+to_string(fd_));
-    connected_=0;
-    //用户下线
-    if(!username_.empty()){
-        Logger::instance().info("user offline:"+username_);
-        OnlineUserManager::instance().removeUser(username_);
-        if(RedisManager::instance().connect())
-          RedisManager::instance().setOffline(username_);
+    cout<<"========== TcpConnection::handleClose =========="<<endl;
+    cout<<"fd="<<fd_<<endl;
+    cout<<"username="<<username_<<endl;
+    cout<<"connected="<<connected_<<endl;
 
+    if(!connected_){
+        cout<<"[CLOSE] already closed, return"<<endl;
+        cout<<"================================================="<<endl;
+        return;
     }
+
+    connected_=false;
+
+    if(!username_.empty()){
+        cout<<"[CLOSE] remove online user: "<<username_<<endl;
+
+        bool removed = OnlineUserManager::instance().removeUser(username_, this);
+
+        cout<<"[CLOSE] set redis offline: "<<username_<<endl;
+
+        if(removed && RedisManager::instance().connect()){
+            RedisManager::instance().setOffline(username_);
+        }
+    }
+
     int oldfd=fd_;
+
     if(fd_!=-1){
+        cout<<"[CLOSE] remove channel fd="<<fd_<<endl;
+
         loop_->removeChannel(channel_);
+
         close(fd_);
+
         fd_=-1;
     }
-    loop_->removeConnection(oldfd);
 
+    loop_->deleteConnection(oldfd);
+
+    cout<<"[CLOSE] handleClose finished"<<endl;
+    cout<<"================================================="<<endl;
 }
 void TcpConnection::setUsername(const string& username){
     username_=username;
@@ -177,8 +214,17 @@ void TcpConnection::handleWrite(){
             channel_->disableWriting();
         }
     }else{
-        if(errno==EAGAIN||errno==EWOULDBLOCK)return;
-
-        handleClose();
+    if(errno==EAGAIN||errno==EWOULDBLOCK){
+        return;
     }
+
+    cout<<"========== SEND ERROR =========="<<endl;
+    cout<<"fd="<<fd_<<endl;
+    cout<<"username="<<username_<<endl;
+    cout<<"errno="<<errno<<endl;
+    cout<<"error="<<strerror(errno)<<endl;
+    cout<<"==============================="<<endl;
+
+    handleClose();
+}
 }

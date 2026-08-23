@@ -2,6 +2,7 @@
 #include "../../ChatController/ChatController.h"
 #include "../../../protocol/MessageCodec/MessageCodec.h"
 #include "../../../protocol/MsgId.h"
+#include "../../../netlib/base/SocketUtil/SocketUtil.h"
 #include <nlohmann/json.hpp>
 #include <iostream>
 #include <sys/socket.h>
@@ -79,7 +80,7 @@ if(cmd==1){
     js["groupname"]=groupName;
 
     string data=MessageCodec::encode(js.dump());
-    send(fd,data.data(),data.size(),0);
+    SocketUtil::sendAll(fd,data);
 }
 //加入群
 else if(cmd==2){
@@ -93,7 +94,7 @@ else if(cmd==2){
     js["groupname"]=groupName;
 
     string data=MessageCodec::encode(js.dump());
-    send(fd,data.data(),data.size(),0);
+    SocketUtil::sendAll(fd,data);
 
 }
 //群聊
@@ -112,7 +113,7 @@ else if(cmd==4){
     js["username"]=username;
 
     string data=MessageCodec::encode(js.dump());
-    send(fd,data.data(),data.size(),0);
+    SocketUtil::sendAll(fd,data);
 }
 //退出群
 else if(cmd==5){
@@ -126,7 +127,7 @@ else if(cmd==5){
     js["groupname"]=groupName;
 
     string data=MessageCodec::encode(js.dump());
-    send(fd,data.data(),data.size(),0);
+    SocketUtil::sendAll(fd,data);
 }
 //踢成员
 else if(cmd==6){
@@ -144,7 +145,7 @@ else if(cmd==6){
     js["username"]=member;
 
     string data=MessageCodec::encode(js.dump());
-    send(fd,data.data(),data.size(),0);
+    SocketUtil::sendAll(fd,data);
 }
 //解散群
 else if(cmd==7){
@@ -158,7 +159,7 @@ else if(cmd==7){
     js["operator"]=username;
 
     string data=MessageCodec::encode(js.dump());
-    send(fd,data.data(),data.size(),0);
+    SocketUtil::sendAll(fd,data);
 }
 //添加管理员
 else if(cmd==8){
@@ -175,7 +176,7 @@ else if(cmd==8){
     js["operator"]=username;
     js["username"]=admin;
     string data=MessageCodec::encode(js.dump());
-    send(fd,data.data(),data.size(),0);
+    SocketUtil::sendAll(fd,data);
 }
 //删除管理员
 else if(cmd==9){
@@ -193,7 +194,7 @@ else if(cmd==9){
     js["username"]=admin;
 
     string data=MessageCodec::encode(js.dump());
-    send(fd,data.data(),data.size(),0);
+    SocketUtil::sendAll(fd,data);
 }
 //查看群申请
 else if(cmd==10){
@@ -206,7 +207,7 @@ else if(cmd==10){
     js["groupname"]=groupName;
     js["operator"]=username;
     string data=MessageCodec::encode(js.dump());
-    send(fd,data.data(),data.size(),0);
+    SocketUtil::sendAll(fd,data);
 }
 //处理群申请
 else if(cmd==11){
@@ -228,7 +229,7 @@ else if(cmd==11){
     js["accept"]=accept;
 
     string data=MessageCodec::encode(js.dump());
-    send(fd,data.data(),data.size(),0);
+    SocketUtil::sendAll(fd,data);
 }
 //查看加入的群
 else if(cmd==12){
@@ -237,7 +238,7 @@ else if(cmd==12){
     js["username"]=username;
 
     string data=MessageCodec::encode(js.dump());
-    send(fd,data.data(),data.size(),0);
+    SocketUtil::sendAll(fd,data);
 }
 //群聊历史
 else if(cmd==13){
@@ -250,7 +251,7 @@ else if(cmd==13){
     js["groupname"]=groupName;
 
     string data=MessageCodec::encode(js.dump());
-    send(fd,data.data(),data.size(),0);
+    SocketUtil::sendAll(fd,data);
 }
 //邀请用户进群
 else if(cmd==14){
@@ -268,7 +269,7 @@ else if(cmd==14){
     js["username"]=member;
     string data=
     MessageCodec::encode(js.dump());
-    send(fd,data.data(),data.size(),0);
+    SocketUtil::sendAll(fd,data);
 }
 }
 }

@@ -25,17 +25,20 @@ void TcpServer::start(){
 }
 
 void TcpServer::newConnection(int client_fd){
-
     Logger::instance().info("new client fd=" +to_string(client_fd));
-    //选择sub reactor
     EventLoop* ioLoop=threadPool_->getNextLoop();
-    //  这里不能直接new TcpConnection
-    //  因为当前线程是main reactor线程
-    //  要把任务交给sub loop执行
+    cout<<"========== NEW CONNECTION =========="<<endl;
+    cout<<"client fd="<<client_fd<<endl;
+    cout<<"selected EventLoop="<<ioLoop<<endl;
+    cout<<"===================================="<<endl;
     ioLoop->queueInLoop(
         [ioLoop,client_fd](){
             TcpConnection* conn=new TcpConnection(ioLoop,client_fd);
             ioLoop->addConnection(client_fd,conn);
+            cout<<"========== ADD CONNECTION =========="<<endl;
+            cout<<"fd="<<client_fd<<endl;
+            cout<<"EventLoop="<<ioLoop<<endl;
+            cout<<"===================================="<<endl;
         }
     );
 }

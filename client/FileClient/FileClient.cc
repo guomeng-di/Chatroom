@@ -18,10 +18,18 @@
 using json=nlohmann::json;
 using namespace std;
 #define FILE_BLOCK_SIZE 4096
+namespace {
+string makeSendKey(const string& targetType,const string& target,const string& filename){
+    return targetType + "_" + target + "_" + filename;
+}
+}
 //发送方->服务器
-void FileClient::sendFile(int fd,int fileid,const string& filename,const string& target,const string& targetType,const string& groupname,long long offset){
+void FileClient::sendFile(int fd,int fileid,const string& filepath,const string& filename,const string& target,const string& targetType,const string& groupname,long long offset){
+    // File transfer is deliberately detached from the receive/menu threads.
+    // The caller returns immediately, so the user can continue chatting while
+    // this worker reads and sends file packets in the background.
     thread([=](){
-        string filepath =FILE_ROOT + filename;
+      try{
         int filefd =open(filepath.c_str(),O_RDONLY);
         if(filefd < 0){
             cout<<"open file failed:"<<filepath<<endl;
@@ -29,26 +37,46 @@ void FileClient::sendFile(int fd,int fileid,const string& filename,const string&
 
         }
 
-        long long filesize = filesystem::file_size(filepath);
+        error_code fileSizeError;
+        long long filesize = filesystem::file_size(filepath,fileSizeError);
+        if(fileSizeError){
+            cout<<"get file size failed:"<<filepath<<endl;
+            close(filefd);
+            return;
+        }
+
+        if(offset < 0 || offset > filesize){
+            cout<<"invalid resume offset="<<offset<<" filesize="<<filesize<<endl;
+            close(filefd);
+            return;
+        }
 
         if(offset> 0){
             cout<<"resume send offset="<<offset<<endl;
 
-            lseek(filefd,offset,SEEK_SET);
+            if(lseek(filefd,offset,SEEK_SET) < 0){
+                cout<<"seek file failed:"<<filepath<<endl;
+                close(filefd);
+                return;
+            }
         }
 
         char buffer[4096];
         long long current=offset;
+        bool completed=true;
         while(current<filesize){
             int n =read(filefd,buffer,sizeof(buffer));
-            if(n<=0)break;
+            if(n<=0){
+                completed=false;
+                break;
+            }
             json js;
             js["msgid"]=FILE_DATA_MSG;
             js["fileid"]=fileid;
             js["filename"]=filename;
             js["fromname"] =username_;
             js["filesize"]=filesize;
-            js["offset"] =offset;
+            js["offset"] =current;
             js["size"]=n;
             js["targetType"]=targetType;
             if(targetType=="user")js["toname"]=target;
@@ -63,10 +91,15 @@ void FileClient::sendFile(int fd,int fileid,const string& filename,const string&
                 close(filefd);
                 return;
             }
-            cout<<"send offset="<<offset<<" size="<<n<<endl;
+            cout<<"send offset="<<current<<" size="<<n<<endl;
             current+= n;
         }
         close(filefd);
+
+        if(!completed || current != filesize){
+            cout<<"file read incomplete:"<<filename<<endl;
+            return;
+        }
 
         json finish;
         finish["msgid"] =FILE_FINISH_MSG;
@@ -83,7 +116,20 @@ void FileClient::sendFile(int fd,int fileid,const string& filename,const string&
         string finishData =MessageCodec::encode(finish.dump());
         SocketUtil::sendAll(fd,finishData);
         cout<<"file send finish:"<<filename<<endl;
+      }catch(const exception& e){
+        cout<<"file transfer failed:"<<e.what()<<endl;
+      }
     }).detach();
+}
+void FileClient::setSendFilePath(const string& targetType,const string& target,const string& filename,const string& filepath){
+    lock_guard<mutex> lock(mutex_);
+    sendFilePaths_[makeSendKey(targetType,target,filename)] = filepath;
+}
+string FileClient::getSendFilePath(const string& targetType,const string& target,const string& filename){
+    lock_guard<mutex> lock(mutex_);
+    auto it = sendFilePaths_.find(makeSendKey(targetType,target,filename));
+    if(it == sendFilePaths_.end()) return "";
+    return it->second;
 }
 void FileClient::addPendingFile(const string& sender,const string& filename,long long size,const string& targetType,const string& groupname,int fileid){
     PendingFile file;
@@ -144,7 +190,8 @@ void FileClient::receiveFile(const FilePacket& packet,int fd){
     cout<<"receive offset="<<offset<<" size="<<data.size()<<endl;
     FileModel model;
     long long oldSize=model.getReceivedSize(fileid,username_);
-    long long newSize=oldSize+data.size();
+    long long newSize=offset + data.size();
+    if(newSize < oldSize) newSize = oldSize;
     model.updateReceivedSize(fileid,username,newSize);
     cout<<"========== RECEIVE UPDATE =========="<<endl;
     cout<<"fileid="<<fileid<<endl;

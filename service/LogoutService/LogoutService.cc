@@ -10,25 +10,26 @@ using namespace std;
 json LogoutService::logout(const json& js){
     json res;
     res["msgid"]=LOGOUT_ACK;
+
     if(!js.contains("username")){
-        Logger::instance().error(
-        "logout lack username"
-    );
-        res["errno"]=1,res["message"]="lack username";
+        Logger::instance().error("logout lack username");
+        res["errno"]=1;
+        res["message"]="lack username";
         return res;
     }
-    string username=js["username"];
-    OnlineUserManager::instance().removeUser(username);
-    //redis修改状态
-    if(RedisManager::instance().connect()) RedisManager::instance().setOffline(username);
 
-    Logger::instance().info(
-        username + " remove online user success"
-    );
-    Logger::instance().info(
-    username+" logout success"
-);
-    res["errno"]=0,res["message"]="logout success";
-    FriendStatusService::notifyOffline(username);
+    string username=js["username"];
+
+    OnlineUserManager::instance().removeUser(username);
+
+    if(RedisManager::instance().connect()){
+        RedisManager::instance().setOffline(username);
+    }
+
+    Logger::instance().info(username+" logout success");
+
+    res["errno"]=0;
+    res["message"]="logout success";
+
     return res;
 }

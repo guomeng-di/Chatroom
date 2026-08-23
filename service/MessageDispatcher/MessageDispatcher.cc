@@ -15,6 +15,7 @@
 #include "../../netlib/net/TcpConnection/TcpConnection.h"
 #include "../../protocol/MsgId.h"
 #include "../../manager/FileManager/FileManager.h"
+#include "../../manager/RedisManager/RedisManager.h"
 #include <iostream>
 #include "../DeleteAccountService/DeleteAccountService.h"
 #include "../ResetPasswordService/ResetPasswordService.h"
@@ -235,7 +236,11 @@ void MessageDispatcher::dispatch(const json& js,TcpConnection* conn){
 //现在,客户端手动输入29,可以检测心跳,发送消息回复它:收到
         case HEARTBEAT_MSG:{
             Logger::instance().info("receive heartbeat");
-            //conn->updateActiveTime();
+            conn->updateActiveTime();
+            // 刷新 Redis 在线状态，客户端异常退出后状态会自动过期。
+            if(!conn->getUsername().empty() && RedisManager::instance().connect()){
+                RedisManager::instance().setOnline(conn->getUsername());
+            }
             json res;
             res["msgid"]=HEARTBEAT_ACK;
             res["message"]="heartbeat ack";
@@ -275,19 +280,26 @@ void MessageDispatcher::dispatch(const json& js,TcpConnection* conn){
             conn->send(res.dump());
             break;
         }
-//35发送文件
-        case FILE_DATA_MSG:{
-            ReceiveFileInfo info;
-            info.fileid =js["fileid"];
-            info.filename =js["filename"];
-            info.filesize =js["filesize"];
-            info.receivedSize=js["received_size"];
-            FileService::receiveFileData(info,conn);
-            break;
-        }
+// //35发送文件
+//         case FILE_DATA_MSG:{
+//             ReceiveFileInfo info;
+//             info.fileid =js["fileid"];
+//             info.filename =js["filename"];
+//             info.filesize =js["filesize"];
+//             info.receivedSize=js["received_size"];
+//             FileService::receiveFileData(info,conn);
+//             break;
+//         }
 //36发送完毕
         case FILE_FINISH_MSG:{
             FileService::finishFile(js,conn);
+            break;
+        }
+
+//42查询断点续传进度
+        case FILE_RESUME_REQUEST:{
+            json res = FileService::queryResumeFile(js,conn);
+            conn->send(res.dump());
             break;
         }
 // //37查询blocks

@@ -18,6 +18,13 @@ RedisManager::~RedisManager(){
         redisFree((redisContext*)redisContext_);
 }
 bool RedisManager::connect(){
+    // 复用正常连接，避免每次心跳都创建新的 hiredis 上下文。
+    if(redisContext_ != nullptr){
+        redisContext* existing = (redisContext*)redisContext_;
+        if(existing->err == 0) return true;
+        redisFree(existing);
+        redisContext_ = nullptr;
+    }
     redisContext* context =redisConnect("127.0.0.1",6379);
     if(context==nullptr||context->err){
         cout<<"redis connect fail"<<endl;
@@ -130,7 +137,8 @@ bool RedisManager::setOnline(const string& username){
     if(redisContext_==nullptr) return 0;
     redisContext* context=(redisContext*) redisContext_;
     string key="online:"+username;
-    redisReply* reply=(redisReply*)redisCommand(context,"SET %s 1",key.c_str());
+    // 客户端异常退出时让在线状态自动过期，正常心跳会刷新该键。
+    redisReply* reply=(redisReply*)redisCommand(context,"SET %s 1 EX 15",key.c_str());
     if(reply==nullptr){
         Logger::instance().error("redis set online failed");
         return false;
@@ -139,16 +147,44 @@ bool RedisManager::setOnline(const string& username){
     return 1;
 }
 bool RedisManager::setOffline(const string& username){
-    if(redisContext_==nullptr) return 0;
-    redisContext* context=(redisContext*) redisContext_;
-    string key="online:"+username;
-    redisReply* reply=(redisReply*)redisCommand(context,"DEL %s",key.c_str());
-    if(reply==nullptr){
-        Logger::instance().error("redis delete online failed");
+
+    if(redisContext_==nullptr)
+        return false;
+
+    redisContext* context =
+        (redisContext*)redisContext_;
+
+    string key = "online:" + username;
+
+    cout << "========== REDIS SET OFFLINE =========="
+         << endl;
+
+    cout << "username="
+         << username
+         << endl;
+
+    cout << "key="<< key<< endl;
+
+    redisReply* reply =
+        (redisReply*)redisCommand(
+            context,
+            "DEL %s",
+            key.c_str()
+        );
+
+    if(reply == nullptr){
+        cout << "redis DEL failed"<< endl;
+
         return false;
     }
-    if(reply) freeReplyObject(reply);
-    return 1;
+
+    cout << "DEL result="<< reply->integer<< endl;
+
+    freeReplyObject(reply);
+
+    cout << "========================================"<< endl;
+
+    return true;
 }
 bool RedisManager::isOnline(const string& username){
     if(redisContext_==nullptr) return 0;
@@ -159,6 +195,17 @@ bool RedisManager::isOnline(const string& username){
     bool result=false;
     if(reply->integer==1) result=true;
     freeReplyObject(reply);
+    // 为升级前没有 TTL 的在线键补上过期时间，避免历史脏数据永久在线。
+    if(result){
+        redisReply* ttlReply=(redisReply*)redisCommand(context,"TTL %s",key.c_str());
+        if(ttlReply!=nullptr){
+            if(ttlReply->type==REDIS_REPLY_INTEGER && ttlReply->integer<0){
+                redisReply* expireReply=(redisReply*)redisCommand(context,"EXPIRE %s 15",key.c_str());
+                if(expireReply!=nullptr) freeReplyObject(expireReply);
+            }
+            freeReplyObject(ttlReply);
+        }
+    }
     return result;
 }
 
