@@ -31,12 +31,12 @@ void ClientMessageHandler::handle(const json& js,int fd){
         }
 
         //群聊消息
-else if(msgid==GROUP_CHAT_NOTIFY){
+else if(msgid==CHAT_NOTIFY){
     string from=(string)js["from"];
     string message=(string)js["message"];
 
     cout<<COLOR_BLUE<<from<<COLOR_RESET<<": "<<message<<endl;
-}else if(msgid==GROUP_CHAT_ACK){
+}else if(msgid==CHAT_ACK){
     if(js["errno"]==0) return;
     cout<<COLOR_RED<<"群聊失败: "<<js["message"]<<COLOR_RESET<<endl;
 }
@@ -400,6 +400,10 @@ else if(msgid==GET_GROUP_REQUEST_ACK){
     }else{
         cout<<COLOR_RED<<"获取群申请列表失败: "<<js["message"]<<COLOR_RESET<<endl;
     }
+}
+//处理群申请
+else if(msgid==HANDLE_GROUP_REQUEST_ACK){
+ cout<<COLOR_RED<<"[群申请处理] "<<js["message"]<<COLOR_RESET<<endl;
 }
 //心跳检测
         else if(msgid == HEARTBEAT_ACK){
