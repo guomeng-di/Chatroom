@@ -455,18 +455,7 @@ else if(msgid==INVITE_GROUP_ACK){
         cout<< COLOR_RED<< js["message"]<< COLOR_RESET<< endl;
     }
 }
-// //重置密码
-//         else if(msgid==RESET_PASSWORD_ACK){
-//              if(js["errno"]==0){
-//                 cout<<"\n==========密码设置=========="<<endl;
-//                 cout<<"reset password success"<<endl;
-//                 cout<<"============================="<<endl;
-//             }else{
-//                 cout<<"\n==========密码设置失败=========="<<endl;
-//                 cout<<"reset password failed:"<<js["message"]<<endl;
-//                 cout<<"============================="<<endl;
-//             }
-//         }
+
 //屏蔽成功
 else if(msgid==ADD_BLOCK_ACK){
     if(js["errno"]==0){

@@ -44,22 +44,12 @@ void AccountMenu::run(int fd,const string& username){
         FD_ZERO(&readfds);
         FD_SET(STDIN_FILENO,&readfds);
 
-        int heartbeatFd=Heartbeat::getTimerFd();
-        if(heartbeatFd>=0) FD_SET(heartbeatFd,&readfds);
-
-        int maxfd=STDIN_FILENO;
-        if(heartbeatFd>maxfd) maxfd=heartbeatFd;
-
-        int selectRet=select(maxfd+1,&readfds,nullptr,nullptr,nullptr);
+        int selectRet=select(STDIN_FILENO+1,&readfds,nullptr,nullptr,nullptr);
 
         if(selectRet<0){
             if(errno==EINTR) continue;
-            // Logger::instance().error("select failed");
+            cerr<<"select failed"<<endl;
             break;
-        }
-
-        if(heartbeatFd>=0&&FD_ISSET(heartbeatFd,&readfds)){
-            Heartbeat::check(fd);
         }
 
         if(!FD_ISSET(STDIN_FILENO,&readfds)) continue;

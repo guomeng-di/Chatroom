@@ -87,7 +87,26 @@ bool waitForJsonResponse(int fd,int expectedMsgId,json& response){
 
 void recvMessage(int fd){
     char buf[1024*4];
+    int timerFd=Heartbeat::getTimerFd();
     while(true){
+        fd_set readfds;
+        FD_ZERO(&readfds);
+        FD_SET(fd,&readfds);
+        FD_SET(timerFd,&readfds);
+        int maxfd=max(fd,timerFd);
+        timeval timeout;
+        timeout.tv_sec=1;
+        timeout.tv_usec=0;
+        int ret=select(maxfd+1,&readfds,nullptr,nullptr,&timeout);
+
+        if(ret<0){
+            if(errno==EINTR) continue;
+            break;
+        }
+        if(FD_ISSET(timerFd,&readfds)){
+            Heartbeat::check(fd);
+        }
+        if(FD_ISSET(fd,&readfds)){
         int len=recv(fd,buf,sizeof(buf),0);
         if(len>0){
             clientBuffer.append(buf,len);
@@ -111,16 +130,18 @@ void recvMessage(int fd){
                     // Logger::instance().error(string("message error: ")+e.what());
                 }
             }
-            continue;
         }
-        if(len==0){
+        
+        else if(len==0){
             cout<<endl<<COLOR_RED<<"server close"<<COLOR_RESET<<endl;
             break;
-        }
+        }else{
         if(errno==EINTR) continue;
         // Logger::instance().error("recv failed");
         break;
     }
+}
+}  Heartbeat::stop();
 }
 
 void printMainMenu(){

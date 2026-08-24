@@ -152,7 +152,7 @@ void FileClient::setUsername(const string& name){
 string FileClient::getUsername(){
     return username_;
 }
-PendingFile FileClient::getPendingFile(...){
+PendingFile FileClient::getPendingFile(const string& sender,const string& filename){
     lock_guard<mutex> lock(mutex_);
     string key=sender+"_"+filename;
     cout<<"search pending:"<<key<<endl;
