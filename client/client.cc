@@ -29,19 +29,19 @@ extern string username;
 
 int main(int argc, char* argv[]){
     InitLogger("ChatClient");
-    string server_ip="0.0.0.0";
-    int server_port=8888;
+    string server_ip;
+    int server_port;
     // 支持：./client IP PORT
     if(argc==3){
         server_ip =argv[1];
         server_port=atoi(argv[2]);
         LOG_INFO<<"使用命令行参数进行配置";
     }else{
-        // cout<<"server ip:";
-        // cin>>server_ip;
+        cout<<"server ip:";
+        cin>>server_ip;
 
-        // cout << "server port: ";
-        // cin >> server_port;
+        cout << "server port: ";
+        cin >> server_port;
     }
     LOG_INFO<<"客户端配置 IP="<<server_ip<<" 端口="<<server_port;
     // 1 socket
