@@ -6,6 +6,7 @@
  #include "../../model/UserModel/UserModel.h"
  #include "../../model/FriendModel/FriendModel.h"
  #include "../../manager/OnlineUserManager/OnlineUserManager.h"
+ #include "../../manager/RedisManager/RedisManager.h"
  #include "../../model/GroupRequestModel/GroupRequestModel.h"
  #include "../../model/FriendModel/FriendModel.h"
  using namespace std;
@@ -94,17 +95,39 @@
     }
     Logger::instance().info(owner+" create group "+groupName+" success");
     for(const auto& member:inviteUsers){
-        TcpConnection* memberConn=OnlineUserManager::instance().getConnection(member);
-        if(memberConn){
-            json notify;
-            notify["msgid"]=GROUP_INVITE_NOTIFY;
-            notify["groupname"]=groupName;
-            notify["operator"]=owner;
-            notify["username"]=member;
-            notify["message"]=owner+" invited you to group "+groupName+", you are now a group member";
-            memberConn->send(notify.dump());
+    json notify;
+    notify["msgid"]=GROUP_INVITE_NOTIFY;
+    notify["groupname"]=groupName;
+    notify["operator"]=owner;
+    notify["username"]=member;
+    notify["message"]=owner+" invited you to group "+groupName+", you are now a group member";
+
+    TcpConnection* memberConn=OnlineUserManager::instance().getConnection(member);
+
+    if(memberConn){
+        cout<<"group invite user online:"<<member<<endl;
+        cout<<"send group invite notify:"<<notify.dump()<<endl;
+        Logger::instance().info("group invite user online:"+member);
+        memberConn->send(notify.dump());
+    }else{
+        cout<<"group invite user offline:"<<member<<endl;
+        cout<<"save offline group invite:"<<notify.dump()<<endl;
+        Logger::instance().info("group invite user offline:"+member);
+
+        if(RedisManager::instance().connect()){
+            if(RedisManager::instance().saveOfflineGroupInvite(member,notify)){
+                cout<<"save offline group invite success"<<endl;
+                Logger::instance().info("save offline group invite success:"+member);
+            }else{
+                cout<<"save offline group invite failed"<<endl;
+                Logger::instance().error("save offline group invite failed:"+member);
+            }
+        }else{
+            cout<<"redis connect failed when save group invite"<<endl;
+            Logger::instance().error("redis connect failed when save group invite");
         }
     }
+}
     response["errno"]=0;
     response["message"]="create group success";
     return response;

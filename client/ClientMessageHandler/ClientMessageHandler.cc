@@ -427,7 +427,11 @@ else if(msgid==LEAVE_GROUP_ACK){
 }
 //邀请进群
 else if(msgid==GROUP_INVITE_NOTIFY){
-    cout<<COLOR_BLUE<<js["message"]<<COLOR_RESET<<endl;
+    cout<<COLOR_BLUE<<"========== 群邀请 =========="<<COLOR_RESET<<endl;
+    cout<<COLOR_BLUE<<"邀请人: "<<js.value("operator","")<<COLOR_RESET<<endl;
+    cout<<COLOR_BLUE<<"群名称: "<<js.value("groupname","")<<COLOR_RESET<<endl;
+    cout<<COLOR_BLUE<<"消息: "<<js.value("message","")<<COLOR_RESET<<endl;
+    cout<<COLOR_BLUE<<"============================"<<COLOR_RESET<<endl;
 }
 else if(msgid==GROUP_MEMBER_JOIN_NOTIFY){
     cout<<COLOR_BLUE<<js["message"]<<COLOR_RESET<<endl;

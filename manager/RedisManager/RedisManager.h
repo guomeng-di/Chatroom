@@ -50,6 +50,11 @@ class RedisManager{
     //删除验证码
     bool deleteVerifyCode(const std::string& target);
 
+    //离线群邀请
+    bool saveOfflineGroupInvite(const std::string& username,const json& js);
+    std::vector<std::string> getOfflineGroupInvite(const std::string& username);
+    void clearOfflineGroupInvite(const std::string& username);
+
   private:
     // 私有构造、析构 → 外面不能 new RedisManager()
     RedisManager();

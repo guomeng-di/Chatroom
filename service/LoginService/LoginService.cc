@@ -171,12 +171,42 @@ if(RedisManager::instance().connect()){
 
 cout << "========== LOGIN STEP 3 END ==========" << endl;
 
+// ===============================
+// 离线群邀请
+// ===============================
 
+cout << "\n========== LOGIN STEP 4 ==========" << endl;
+cout << "before getOfflineGroupInvite, username=" << username << endl;
+
+if(RedisManager::instance().connect()){
+    vector<string> invites=RedisManager::instance().getOfflineGroupInvite(username);
+    cout<<"after getOfflineGroupInvite"<<endl;
+    cout<<"offline group invite count="<<invites.size()<<endl;
+    for(auto& invite:invites){
+        cout<<"raw offline group invite="<<invite<<endl;
+        try{
+            json inviteInfo=json::parse(invite);
+            if(!inviteInfo.is_object()){
+                cout<<"ERROR: offline group invite is NOT object!"<<endl;
+                continue;
+            }
+            inviteInfo["msgid"]=GROUP_INVITE_NOTIFY;
+            cout<<"group invite notify="<<inviteInfo.dump()<<endl;
+            conn->send(inviteInfo.dump());
+        }catch(const exception& e){
+            cout<<"ERROR parsing offline group invite: "<<e.what()<<endl;
+            cout<<"bad offline group invite data="<<invite<<endl;
+        }
+    }
+    RedisManager::instance().clearOfflineGroupInvite(username);
+}
+
+cout << "========== LOGIN STEP 4 END ==========" << endl;
 // ===============================
 // 未完成文件
 // ===============================
 
-cout << "\n========== LOGIN STEP 4 ==========" << endl;
+cout << "\n========== LOGIN STEP 5 ==========" << endl;
 cout << "before getUnfinishedFiles, username="
      << username
      << endl;
@@ -219,7 +249,7 @@ for(auto& file : files){
     conn->send(fileInfo.dump());
 }
 
-cout << "========== LOGIN STEP 4 END ==========" << endl;
+cout << "========== LOGIN STEP 5 END ==========" << endl;
 
     }else{
 

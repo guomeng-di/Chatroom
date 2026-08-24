@@ -289,3 +289,42 @@ void RedisManager::clearOfflineFiles(const string& username){
     redisReply* reply =(redisReply*)redisCommand(context,"DEL %s",key.c_str());
     if(reply) freeReplyObject(reply);
 }
+
+bool RedisManager::saveOfflineGroupInvite(const string& username,const json& js){
+    if(redisContext_==nullptr) return false;
+    redisContext* context=(redisContext*)redisContext_;
+    string key="offline:group_invite:"+username;
+    string data=js.dump();
+
+    redisReply* reply=(redisReply*)redisCommand(context,"RPUSH %s %b",key.c_str(),data.data(),data.size());
+
+    if(reply==nullptr){
+        Logger::instance().error("redis save offline group invite failed");
+        return false;
+    }
+
+    freeReplyObject(reply);
+    Logger::instance().info("save offline group invite success key="+key);
+    return true;
+}
+
+vector<string> RedisManager::getOfflineGroupInvite(const string& username){
+    vector<string> invites;
+    if(redisContext_==nullptr) return invites;
+    redisContext* context=(redisContext*)redisContext_;
+    string key="offline:group_invite:"+username;
+    redisReply* reply=(redisReply*)redisCommand(context,"LRANGE %s 0 -1",key.c_str());
+    if(reply==nullptr) return invites;
+    for(size_t i=0;i<reply->elements;i++){
+        if(reply->element[i]->str) invites.push_back(reply->element[i]->str);
+    }
+    freeReplyObject(reply);
+    return invites;
+}
+void RedisManager::clearOfflineGroupInvite(const string& username){
+    if(redisContext_==nullptr) return;
+    redisContext* context=(redisContext*)redisContext_;
+    string key="offline:group_invite:"+username;
+    redisReply* reply=(redisReply*)redisCommand(context,"DEL %s",key.c_str());
+    if(reply) freeReplyObject(reply);
+}
