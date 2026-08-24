@@ -138,7 +138,7 @@ bool RedisManager::setOnline(const string& username){
     redisContext* context=(redisContext*) redisContext_;
     string key="online:"+username;
     // 客户端异常退出时让在线状态自动过期，正常心跳会刷新该键。
-    redisReply* reply=(redisReply*)redisCommand(context,"SET %s 1 EX 15",key.c_str());
+    redisReply* reply=(redisReply*)redisCommand(context,"SET %s 1 EX 30",key.c_str());
     if(reply==nullptr){
         Logger::instance().error("redis set online failed");
         return false;

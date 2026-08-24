@@ -3,17 +3,17 @@
 #include <unistd.h>
 #include <arpa/inet.h>
 #include <sys/socket.h>
-#include <thread>
-#include <sys/timerfd.h>
 #include <sys/select.h>
 #include <cstdint>
 #include <algorithm>
 #include <string>
 #include <limits>
 #include <cerrno>
+#include <thread>
 #include "../../../src/config.h"
 #include "../../../netlib/base/Logger.h"
 #include "../../ClientMessageHandler/ClientMessageHandler.h"
+#include "../../Heartbeat/Heartbeat.h"
 #include "../../../protocol/MessageCodec/MessageCodec.h"
 #include "../../../protocol/MsgId.h"
 #include "../../../netlib/net/Buffer/Buffer.h"
@@ -25,14 +25,18 @@
 #include "../../FileClient/FileClient.h"
 #include "../Color.h"
 #include <nlohmann/json.hpp>
+
 using namespace std;
 using json=nlohmann::json;
+
 string username;
 Buffer clientBuffer;
 string currentSendFile;
+
 bool sendAllData(int fd,const string& data){
     return SocketUtil::sendAll(fd,data);
 }
+
 bool getNextMessage(int fd,string& msg){
     while(true){
         if(clientBuffer.hasMessage()){
@@ -54,6 +58,7 @@ bool getNextMessage(int fd,string& msg){
         return false;
     }
 }
+
 bool waitForJsonResponse(int fd,int expectedMsgId,json& response){
     while(true){
         string msg;
@@ -79,13 +84,7 @@ bool waitForJsonResponse(int fd,int expectedMsgId,json& response){
         ClientMessageHandler::handle(response,fd);
     }
 }
-void sendHeartbeat(int fd){
-    json js;
-    js["msgid"]=HEARTBEAT_MSG;
-    string sendData=MessageCodec::encode(js.dump());
-    if(!sendAllData(fd,sendData)) Logger::instance().error("[heartbeat] send failed");
-    else Logger::instance().info("[heartbeat] send");
-}
+
 void recvMessage(int fd){
     char buf[1024*4];
     while(true){
@@ -123,6 +122,7 @@ void recvMessage(int fd){
         break;
     }
 }
+
 void printMainMenu(){
     cout<<COLOR_CYAN;
     cout<<R"(
@@ -138,12 +138,12 @@ void printMainMenu(){
 )";
     cout<<COLOR_RESET;
 }
+
 bool login(int fd){
     cout<<"登录:"<<endl;
     cout<<"username:"; cin>>username;
     string password;
-    cout<<"password:";
-    cin>>password;
+    cout<<"password:"; cin>>password;
     json loginMsg;
     loginMsg["msgid"]=LOGIN_MSG;
     loginMsg["username"]=username;
@@ -172,6 +172,7 @@ bool login(int fd){
     cout<<endl;
     return false;
 }
+
 bool sendVerifyCode(int fd,const string& email){
     json js;
     js["msgid"]=SEND_VERIFY_CODE_MSG;
@@ -204,22 +205,20 @@ bool sendVerifyCode(int fd,const string& email){
     cout<<endl;
     return false;
 }
+
 bool registerUser(int fd){
     cout<<"注册"<<endl;
     cout<<"username:"; cin>>username;
     string email;
-    cout<<"your email:";
-    cin>>email;
+    cout<<"your email:"; cin>>email;
     if(!sendVerifyCode(fd,email)){
         cout<<"验证码发送失败"<<endl;
         return false;
     }
     string code;
-    cout<<"verify code:";
-    cin>>code;
+    cout<<"verify code:"; cin>>code;
     string password;
-    cout<<"password:";
-    cin>>password;
+    cout<<"password:"; cin>>password;
     json regMsg;
     regMsg["msgid"]=REGISTER_MSG;
     regMsg["username"]=username;
@@ -243,6 +242,7 @@ bool registerUser(int fd){
     cout<<endl<<COLOR_RED<<"register fail: "<<response["message"]<<COLOR_RESET<<endl;
     return false;
 }
+
 bool ResetPassword(int fd){
     string email,code,password;
     cout<<"your email:"; cin>>email;
@@ -274,8 +274,8 @@ bool ResetPassword(int fd){
     cout<<COLOR_RED<<response["message"]<<COLOR_RESET<<endl;
     return false;
 }
+
 void MainMenu::run(int fd){
-    //clientBuffer.clear();
     while(true){
         cout<<COLOR_GREEN;
         cout<<R"(
@@ -317,45 +317,45 @@ void MainMenu::run(int fd){
             cout<<COLOR_RESET;
         }
     }
+
+    if(!Heartbeat::start()){
+        Logger::instance().error("heartbeat start failed");
+        close(fd);
+        return;
+    }
+
     thread t(recvMessage,fd);
     t.detach();
-    int heartbeatTimerFd=timerfd_create(CLOCK_MONOTONIC,0);
-    if(heartbeatTimerFd<0){
-        Logger::instance().error("timerfd_create");
-        close(fd);
-        return;
-    }
-    itimerspec timer{};
-    timer.it_value.tv_sec=5;
-    timer.it_interval.tv_sec=5;
-    if(timerfd_settime(heartbeatTimerFd,0,&timer,nullptr)<0){
-        Logger::instance().error("timerfd_settime");
-        close(heartbeatTimerFd);
-        close(fd);
-        return;
-    }
+
     cout<<"heartbeat timer started, interval=5s"<<endl;
     printMainMenu();
+
     while(true){
         cout.flush();
         fd_set readfds;
         FD_ZERO(&readfds);
         FD_SET(STDIN_FILENO,&readfds);
-        FD_SET(heartbeatTimerFd,&readfds);
-        int maxfd=max(STDIN_FILENO,heartbeatTimerFd);
-        int ret=select(maxfd+1,&readfds,nullptr,nullptr,nullptr);
-        if(ret<0){
+
+        int heartbeatFd=Heartbeat::getTimerFd();
+        if(heartbeatFd>=0) FD_SET(heartbeatFd,&readfds);
+
+        int maxfd=STDIN_FILENO;
+        if(heartbeatFd>maxfd) maxfd=heartbeatFd;
+
+        int selectRet=select(maxfd+1,&readfds,nullptr,nullptr,nullptr);
+
+        if(selectRet<0){
             if(errno==EINTR) continue;
             Logger::instance().error("select");
             break;
         }
-        if(FD_ISSET(heartbeatTimerFd,&readfds)){
-            uint64_t exp;
-            ssize_t n=read(heartbeatTimerFd,&exp,sizeof(exp));
-            if(n<0) Logger::instance().error("read timerfd failed");
-            else if(n==sizeof(exp)) sendHeartbeat(fd);
+
+        if(heartbeatFd>=0&&FD_ISSET(heartbeatFd,&readfds)){
+            Heartbeat::check(fd);
         }
+
         if(!FD_ISSET(STDIN_FILENO,&readfds)) continue;
+
         int menu;
         if(!(cin>>menu)){
             cin.clear();
@@ -363,6 +363,7 @@ void MainMenu::run(int fd){
             cout<<"输入错误，请输入数字"<<endl;
             continue;
         }
+
         switch(menu){
             case 1:
                 FriendMenu::run(fd,username);
@@ -380,7 +381,7 @@ void MainMenu::run(int fd){
                 cout<<COLOR_RED;
                 cout<<endl<<"退出客户端"<<endl;
                 cout<<COLOR_RESET;
-                close(heartbeatTimerFd);
+                Heartbeat::stop();
                 close(fd);
                 return;
             default:
@@ -391,6 +392,7 @@ void MainMenu::run(int fd){
         }
         printMainMenu();
     }
-    close(heartbeatTimerFd);
+
+    Heartbeat::stop();
     close(fd);
 }

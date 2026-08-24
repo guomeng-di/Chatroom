@@ -738,20 +738,11 @@ else if(msgid==RESET_PASSWORD_ACK){
 //             cout<<"===================================="<<endl;
 //             return;
 // }
-else if(msgid ==SEND_FILE_REQUEST_ACK)
-{
-    if(js["errno"] == 0)
-    {
-        cout << COLOR_GREEN
-             << "[好友请求] "
-             << js["message"].get<string>()
-             << COLOR_RESET
-             << endl;
-    }
-    else
-    {
-        cout << COLOR_RED
-             << "[好友请求失败] "
+else if(msgid ==SEND_FILE_REQUEST_ACK){
+    if(js["errno"] == 0){
+        cout << COLOR_GREEN<< "[好友请求] "<< js["message"].get<string>()<< COLOR_RESET<< endl;
+    }else{
+        cout << COLOR_RED<< "[好友请求失败] "
              << js["message"].get<string>()
              << COLOR_RESET
              << endl;
