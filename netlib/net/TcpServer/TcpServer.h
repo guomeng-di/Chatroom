@@ -27,9 +27,7 @@ class TcpServer{
 
       void start();//socket-bind-listen-listen_fd加入EventLoop中
       void newConnection(int client_fd);//Acceptor通知我有新客户端，我创建TcpConnection
-      //void checkConnectionTimeout();
     private:
-      //std::unordered_map<int,TcpConnection*> connections_;
       EventLoop& loop_;
       std::string ip_;
       int port_;

@@ -2,7 +2,7 @@
 #include "../../model/PrivateMessageModel/PrivateMessageModel.h"
 #include "../../model/GroupMessageModel/GroupMessageModel.h"
 #include "../../protocol/MsgId.h"
-#include "../../netlib/base/Logger.h"
+#include "../../netlib/base/Logger/Logger.h"
 #include "../../model/FriendModel/FriendModel.h"
 using namespace std;
 HistoryService::HistoryService(){}
@@ -50,7 +50,7 @@ json HistoryService::getPrivateHistory(const json& js){
      item["time"]=msg.time;
      response["messages"].push_back(item);
     }
-    Logger::instance().info("get private history success");
+    LOG_INFO<<"获取私聊历史记录成功";
     return response;
 }
 
@@ -83,6 +83,6 @@ json HistoryService::getGroupHistory(const json& js){
   item["time"]=msg.time;
   response["messages"].push_back(item);
  }
- Logger::instance().info("get group history success");
+ LOG_INFO<<"获取群聊历史记录成功";
  return response;
 }

@@ -1,4 +1,5 @@
 #include "FileManager.h"
+#include "../../netlib/base/Logger/Logger.h"
 #include <iostream>
 using namespace std;
 
@@ -14,7 +15,7 @@ void FileManager::startReceive(int fileid,const string& fromname,const string& f
 
     files_[fileid]=info;
 
-    cout <<"start receive "<<filename<<" offset="<<receivedSize<<endl;
+    LOG_INFO<<"开始接收文件:"<<filename<<" 当前偏移位置="<<receivedSize;
 }
 bool FileManager::updateSize(int fileid,long long size){
     auto it=files_.find(fileid);
@@ -22,13 +23,7 @@ bool FileManager::updateSize(int fileid,long long size){
 
     it->second.receivedSize=size;
 
-    cout
-    <<"file "
-    <<fileid
-    <<" received "
-    <<size
-    <<" bytes"
-    <<endl;
+    LOG_INFO<<"文件ID:"<<fileid<<" 已接收大小:"<<size<<" 字节";
 
     return 1;
 

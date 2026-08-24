@@ -13,7 +13,7 @@
 #include <sys/socket.h>
 #include "../../src/config.h"
 #include <nlohmann/json.hpp>
-#include "../../netlib/base/Logger.h"
+#include "../../netlib/base/Logger/Logger.h"
 #include "../../model/FileModel/FileModel.h"
 using json=nlohmann::json;
 using namespace std;
@@ -132,6 +132,8 @@ string FileClient::getSendFilePath(const string& targetType,const string& target
     return it->second;
 }
 void FileClient::addPendingFile(const string& sender,const string& filename,long long size,const string& targetType,const string& groupname,int fileid){
+    lock_guard<mutex> lock(mutex_);
+
     PendingFile file;
     file.filename=filename;
     file.sender=sender;
@@ -139,8 +141,10 @@ void FileClient::addPendingFile(const string& sender,const string& filename,long
     file.fileid=fileid;
     file.targetType=targetType;
     file.groupname=groupname;
+
     pendingFiles_[sender+"_"+filename]=file;
-    cout<<"add pending file:"<<endl;
+
+    cout<<"add pending file success:"<<sender+"_"+filename<<endl;
 }
 void FileClient::setUsername(const string& name){
     username_=name;
@@ -148,7 +152,8 @@ void FileClient::setUsername(const string& name){
 string FileClient::getUsername(){
     return username_;
 }
-PendingFile FileClient::getPendingFile(const string& sender,const string& filename){
+PendingFile FileClient::getPendingFile(...){
+    lock_guard<mutex> lock(mutex_);
     string key=sender+"_"+filename;
     cout<<"search pending:"<<key<<endl;
     auto it=pendingFiles_.find(key);
@@ -156,7 +161,8 @@ PendingFile FileClient::getPendingFile(const string& sender,const string& filena
         cout<<"found pending"<<endl;
         return it->second;
     }
-     cout<<"not found pending"<<endl;
+
+    cout<<"not found pending"<<endl;
     return PendingFile{};
 }
 

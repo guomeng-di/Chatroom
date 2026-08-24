@@ -1,6 +1,6 @@
 #include "GroupRequestModel.h"
 #include "../../database/MySQLManager/MySQLManager.h"
-#include "../../netlib/base/Logger.h"
+// #include "../../netlib/base/Logger.h"
 using namespace std;
 
 GroupRequestModel::GroupRequestModel(){}
@@ -13,14 +13,14 @@ bool GroupRequestModel::addRequest(const string& groupname,const string& usernam
     "insert into group_request(groupname,username)"
     " values('"+groupname+"','"+username+"')";
     if(mysql.execute(sql)){
-        Logger::instance().info(
-            "add group request success"
-        );
+        // Logger::instance().info(
+        //     "add group request success"
+        // );
         return true;
     }
-    Logger::instance().error(
-        "add group request failed"
-    );
+    // Logger::instance().error(
+    //     "add group request failed"
+    // );
     return false;
 }
 vector<GroupRequest> GroupRequestModel::getRequests(const string& groupname){

@@ -2,262 +2,153 @@
 #include "../../model/UserModel/UserModel.h"
 #include "../../model/FileModel/FileModel.h"
 #include "../../model/FriendRequestModel/FriendRequestModel.h"
-#include "../../manager/OnlineUserManager/OnlineUserManager.h" 
-#include "../../manager/RedisManager/RedisManager.h" 
-#include "../../manager/RedisManager/RedisManager.h" 
+#include "../../manager/OnlineUserManager/OnlineUserManager.h"
+#include "../../manager/RedisManager/RedisManager.h"
 #include "../FriendStatusService/FriendStatusService.h"
 #include "../../netlib/net/TcpConnection/TcpConnection.h"
 #include "../../protocol/MsgId.h"
-#include "../../netlib/base/Logger.h"
+#include "../../netlib/base/Logger/Logger.h"
 #include "../../utils/SHA256/SHA256.h"
-
 using namespace std;
 LoginService::LoginService(){
-
 }
 LoginService::~LoginService(){
-
 }
 json LoginService::login(const json& js,TcpConnection* conn){
     string username=js["username"];
     string password=js["password"];
-    Logger::instance().info("login request username="+username);
-
+    LOG_INFO<<"用户登录请求，用户名:"<<username;
     json response;
     UserModel model;
-    string passwordHash =HashSHA256::encode(password);
+    string passwordHash=HashSHA256::encode(password);
     bool flag=model.queryUser(username,passwordHash);
-    //bool flag=model.queryUser(username,password);
     if(flag){
-        Logger::instance().info(username+" login success");
+        LOG_INFO<<"用户登录成功，用户名:"<<username;
         response["msgid"]=LOGIN_ACK;
         response["errno"]=0;
         response["message"]="login success";
         conn->setUsername(username);
-
-        //发送登录成功
         conn->send(response.dump());
-
-        //FileClient::instance().setUsername(username);
         OnlineUserManager::instance().addUser(username,conn);
-        //redis修改状态
-        if(RedisManager::instance().connect())RedisManager::instance().setOnline(username);
-        
+        if(RedisManager::instance().connect()){
+            RedisManager::instance().setOnline(username);
+            LOG_INFO<<"更新用户在线状态成功，用户名:"<<username;
+        }else{
+            LOG_ERROR<<"Redis连接失败，无法更新在线状态，用户名:"<<username;
+        }
         FriendStatusService::notifyOnline(username);
-        //cout<<"add online user: "<<username <<endl;
-
-        //发送好友申请
+        LOG_INFO<<"通知好友上线成功，用户名:"<<username;
         FriendRequestModel requestModel;
-        vector<FriendRequest> requests = requestModel.getRequests(username);
-        for(const auto& request : requests){
+        vector<FriendRequest> requests=requestModel.getRequests(username);
+        LOG_INFO<<"读取好友申请数量:"<<requests.size();
+        for(const auto& request:requests){
             json notify;
-            notify["msgid"] = FRIEND_REQUEST_NOTIFY;
-            notify["fromname"] = request.from;
-            notify["time"] = request.time;
-            notify["message"] = request.from + " 请求添加你为好友";
-
+            notify["msgid"]=FRIEND_REQUEST_NOTIFY;
+            notify["fromname"]=request.from;
+            notify["time"]=request.time;
+            notify["message"]=request.from+" 请求添加你为好友";
             conn->send(notify.dump());
-        }// 登录后读取离线私聊消息
-cout << "\n========== LOGIN STEP 1 ==========" << endl;
-cout << "before getOfflineMessage, username=" << username << endl;
-
-if(RedisManager::instance().connect()){
-    vector<string> messages =
-        RedisManager::instance().getOfflineMessage(username);
-
-    cout << "after getOfflineMessage" << endl;
-    cout << "private offline message count="
-         << messages.size() << endl;
-
-    for(auto& msg : messages){
-        json offlineMsg;
-        offlineMsg["msgid"] = OFFLINE_MSG;
-        offlineMsg["message"] = msg;
-        conn->send(offlineMsg.dump());
-    }
-
-    RedisManager::instance().clearOfflineMessage(username);
-}
-
-cout << "========== LOGIN STEP 1 END ==========" << endl;
-
-
-// ===============================
-// 离线群聊
-// ===============================
-
-cout << "\n========== LOGIN STEP 2 ==========" << endl;
-cout << "before getGroupOfflineMessage, username="
-     << username << endl;
-
-if(RedisManager::instance().connect()){
-    vector<string> messages =
-        RedisManager::instance().getGroupOfflineMessage(username);
-
-    cout << "after getGroupOfflineMessage" << endl;
-    cout << "group offline message count="
-         << messages.size() << endl;
-
-    for(auto& msg : messages){
-        json offlineMsg;
-        offlineMsg["msgid"] = GROUP_OFFLINE_NOTIFY;
-        offlineMsg["message"] = msg;
-        conn->send(offlineMsg.dump());
-    }
-
-    RedisManager::instance().clearGroupOfflineMessage(username);
-}
-
-cout << "========== LOGIN STEP 2 END ==========" << endl;
-
-
-// ===============================
-// 离线文件申请
-// ===============================
-
-cout << "\n========== LOGIN STEP 3 ==========" << endl;
-cout << "before getOfflineFile, username="
-     << username << endl;
-
-if(RedisManager::instance().connect()){
-
-    vector<string> files =
-        RedisManager::instance().getOfflineFile(username);
-
-    cout << "after getOfflineFile" << endl;
-    cout << "offline file count="
-         << files.size() << endl;
-
-    for(auto& file : files){
-
-        cout << "raw offline file="
-             << file
-             << endl;
-
-        try{
-
-            json fileInfo = json::parse(file);
-
-            cout << "parsed offline file type="
-                 << fileInfo.type_name()
-                 << endl;
-
-            cout << "parsed offline file="
-                 << fileInfo.dump()
-                 << endl;
-
-            if(!fileInfo.is_object()){
-                cout << "ERROR: offline file is NOT object!"
-                     << endl;
-                continue;
-            }
-
-            conn->send(fileInfo.dump());
-
-        }catch(const exception& e){
-
-            cout << "ERROR parsing offline file: "
-                 << e.what()
-                 << endl;
-
-            cout << "bad offline file data="
-                 << file
-                 << endl;
         }
-    }
-
-    RedisManager::instance().clearOfflineFiles(username);
-}
-
-cout << "========== LOGIN STEP 3 END ==========" << endl;
-
-// ===============================
-// 离线群邀请
-// ===============================
-
-cout << "\n========== LOGIN STEP 4 ==========" << endl;
-cout << "before getOfflineGroupInvite, username=" << username << endl;
-
-if(RedisManager::instance().connect()){
-    vector<string> invites=RedisManager::instance().getOfflineGroupInvite(username);
-    cout<<"after getOfflineGroupInvite"<<endl;
-    cout<<"offline group invite count="<<invites.size()<<endl;
-    for(auto& invite:invites){
-        cout<<"raw offline group invite="<<invite<<endl;
-        try{
-            json inviteInfo=json::parse(invite);
-            if(!inviteInfo.is_object()){
-                cout<<"ERROR: offline group invite is NOT object!"<<endl;
-                continue;
+        LOG_INFO<<"好友申请发送完成，用户名:"<<username;
+        LOG_INFO<<"开始加载离线私聊消息，用户:"<<username;
+        if(RedisManager::instance().connect()){
+            vector<string> messages=RedisManager::instance().getOfflineMessage(username);
+            LOG_INFO<<"离线私聊消息数量:"<<messages.size();
+            for(auto& msg:messages){
+                json offlineMsg;
+                offlineMsg["msgid"]=OFFLINE_MSG;
+                offlineMsg["message"]=msg;
+                conn->send(offlineMsg.dump());
             }
-            inviteInfo["msgid"]=GROUP_INVITE_NOTIFY;
-            cout<<"group invite notify="<<inviteInfo.dump()<<endl;
-            conn->send(inviteInfo.dump());
-        }catch(const exception& e){
-            cout<<"ERROR parsing offline group invite: "<<e.what()<<endl;
-            cout<<"bad offline group invite data="<<invite<<endl;
+            RedisManager::instance().clearOfflineMessage(username);
+            LOG_INFO<<"清理离线私聊消息成功，用户:"<<username;
+        }else{
+            LOG_ERROR<<"Redis连接失败，无法读取离线私聊消息，用户:"<<username;
         }
-    }
-    RedisManager::instance().clearOfflineGroupInvite(username);
-}
-
-cout << "========== LOGIN STEP 4 END ==========" << endl;
-// ===============================
-// 未完成文件
-// ===============================
-
-cout << "\n========== LOGIN STEP 5 ==========" << endl;
-cout << "before getUnfinishedFiles, username="
-     << username
-     << endl;
-
-FileModel fileModel;
-
-vector<string> files =
-    fileModel.getUnfinishedFiles(username);
-
-cout << "after getUnfinishedFiles" << endl;
-
-cout << "unfinished file count="
-     << files.size()
-     << endl;
-
-for(auto& file : files){
-
-    cout << "raw unfinished file="
-         << file
-         << endl;
-
-    json fileInfo = json::parse(file);
-
-    cout << "unfinished file type="
-         << fileInfo.type_name()
-         << endl;
-
-    if(!fileInfo.is_object()){
-        cout << "ERROR: unfinished file is NOT object!"
-             << endl;
-        continue;
-    }
-
-    fileInfo["msgid"] = FILE_RESUME_NOTIFY;
-
-    cout << "resume notify="
-         << fileInfo.dump()
-         << endl;
-
-    conn->send(fileInfo.dump());
-}
-
-cout << "========== LOGIN STEP 5 END ==========" << endl;
-
+        LOG_INFO<<"开始加载离线群聊消息，用户:"<<username;
+        if(RedisManager::instance().connect()){
+            vector<string> messages=RedisManager::instance().getGroupOfflineMessage(username);
+            LOG_INFO<<"离线群聊消息数量:"<<messages.size();
+            for(auto& msg:messages){
+                json offlineMsg;
+                offlineMsg["msgid"]=GROUP_OFFLINE_NOTIFY;
+                offlineMsg["message"]=msg;
+                conn->send(offlineMsg.dump());
+            }
+            RedisManager::instance().clearGroupOfflineMessage(username);
+            LOG_INFO<<"清理离线群聊消息成功，用户:"<<username;
+        }else{
+            LOG_ERROR<<"Redis连接失败，无法读取离线群聊消息，用户:"<<username;
+        }
+        LOG_INFO<<"开始加载离线文件请求，用户:"<<username;
+        if(RedisManager::instance().connect()){
+            vector<string> files=RedisManager::instance().getOfflineFile(username);
+            LOG_INFO<<"离线文件请求数量:"<<files.size();
+            for(auto& file:files){
+                try{
+                    json fileInfo=json::parse(file);
+                    LOG_INFO<<"解析离线文件请求成功";
+                    if(!fileInfo.is_object()){
+                        LOG_ERROR<<"离线文件请求格式错误";
+                        continue;
+                    }
+                    conn->send(fileInfo.dump());
+                }catch(const exception& e){
+                    LOG_ERROR<<"解析离线文件请求失败:"<<e.what();
+                    LOG_ERROR<<"错误离线文件数据:"<<file;
+                }
+            }
+            RedisManager::instance().clearOfflineFiles(username);
+            LOG_INFO<<"清理离线文件请求成功，用户:"<<username;
+        }else{
+            LOG_ERROR<<"Redis连接失败，无法读取离线文件请求，用户:"<<username;
+        }
+        LOG_INFO<<"开始加载离线群邀请，用户:"<<username;
+        if(RedisManager::instance().connect()){
+            vector<string> invites=RedisManager::instance().getOfflineGroupInvite(username);
+            LOG_INFO<<"离线群邀请数量:"<<invites.size();
+            for(auto& invite:invites){
+                try{
+                    json inviteInfo=json::parse(invite);
+                    if(!inviteInfo.is_object()){
+                        LOG_ERROR<<"离线群邀请格式错误";
+                        continue;
+                    }
+                    inviteInfo["msgid"]=GROUP_INVITE_NOTIFY;
+                    conn->send(inviteInfo.dump());
+                }catch(const exception& e){
+                    LOG_ERROR<<"解析离线群邀请失败:"<<e.what();
+                    LOG_ERROR<<"错误离线群邀请数据:"<<invite;
+                }
+            }
+            RedisManager::instance().clearOfflineGroupInvite(username);
+            LOG_INFO<<"清理离线群邀请成功，用户:"<<username;
+        }else{
+            LOG_ERROR<<"Redis连接失败，无法读取离线群邀请，用户:"<<username;
+        }
+        LOG_INFO<<"开始加载未完成文件，用户:"<<username;
+        FileModel fileModel;
+        vector<string> files=fileModel.getUnfinishedFiles(username);
+        LOG_INFO<<"未完成文件数量:"<<files.size();
+        for(auto& file:files){
+            try{
+                json fileInfo=json::parse(file);
+                if(!fileInfo.is_object()){
+                    LOG_ERROR<<"未完成文件数据格式错误";
+                    continue;
+                }
+                fileInfo["msgid"]=FILE_RESUME_NOTIFY;
+                conn->send(fileInfo.dump());
+            }catch(const exception& e){
+                LOG_ERROR<<"解析未完成文件失败:"<<e.what();
+                LOG_ERROR<<"错误未完成文件数据:"<<file;
+            }
+        }
     }else{
-
-        Logger::instance().error(username+" login failed");
+        LOG_ERROR<<"用户登录失败，用户名:"<<username;
         response["msgid"]=LOGIN_ACK;
         response["errno"]=1;
         response["message"]="username or password error";
-
         conn->send(response.dump());
     }
     return response;

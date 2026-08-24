@@ -1,9 +1,9 @@
 // 借助 libcurl 网络库，走 QQ 邮箱 SMTP 加密协议，把一段验证码文本打包成一封标准邮件
 // 上传到 QQ 邮箱服务器，由服务器转发给目标收件邮箱。
-// 类比：curl 就是快递员，QQ SMTP 服务器是快递中转站，我们把信件交给中转站
+// 类比：curl 就是快递员，QQ SMTP 服务器是邮件中转站，我们把邮件交给中转站
 // 中转站负责投递到对方邮箱
 #include "EmailManager.h"
-#include "../../netlib/base/Logger.h"
+#include "../../netlib/base/Logger/Logger.h"
 #include <iostream>
 #include <curl/curl.h>
 #include <cstring>
@@ -34,7 +34,7 @@ bool EmailManager::sendCode(const std::string& email,const std::string& code){
     //句柄初始化,后续通过它进行发送操作
     CURL* curl=curl_easy_init();
     if(!curl){
-        Logger::instance().error("curl init failed");
+        LOG_ERROR<<"curl初始化失败";
         return false;
     }
 
@@ -100,9 +100,9 @@ bool EmailManager::sendCode(const std::string& email,const std::string& code){
         curl_easy_cleanup(curl);
 
         if(res!=CURLE_OK){
-            Logger::instance().error("send email failed:"+string(curl_easy_strerror(res)));
+            LOG_ERROR<<"邮件发送失败:"<<curl_easy_strerror(res);
             return 0;
         }
-        Logger::instance().info("send email success");
+        LOG_INFO<<"邮件发送成功";
         return 1;
 }

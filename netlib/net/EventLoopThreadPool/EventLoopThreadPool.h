@@ -21,7 +21,7 @@ private:
     EventLoop* baseLoop_;
     int numThreads_;
     size_t next_;
-    std::vector<std::unique_ptr<EventLoopThread>> threads_;
+    std::vector<std::unique_ptr<EventLoopThread>> threads_;//存放从reactor的线程
     std::vector<EventLoop*> loops_;
 
 };

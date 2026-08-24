@@ -11,7 +11,7 @@
 #include <cerrno>
 #include <thread>
 #include "../../../src/config.h"
-#include "../../../netlib/base/Logger.h"
+#include "../../../netlib/base/Logger/Logger.h"
 #include "../../ClientMessageHandler/ClientMessageHandler.h"
 #include "../../Heartbeat/Heartbeat.h"
 #include "../../../protocol/MessageCodec/MessageCodec.h"
@@ -50,11 +50,11 @@ bool getNextMessage(int fd,string& msg){
             continue;
         }
         if(len==0){
-            Logger::instance().error("server closed connection");
+            // Logger::instance().error("server closed connection");
             return false;
         }
         if(errno==EINTR) continue;
-        Logger::instance().error("recv failed");
+        // Logger::instance().error("recv failed");
         return false;
     }
 }
@@ -70,14 +70,14 @@ bool waitForJsonResponse(int fd,int expectedMsgId,json& response){
             continue;
         }
         if(msg.size()<4){
-            Logger::instance().error("invalid message size");
+            // Logger::instance().error("invalid message size");
             continue;
         }
         string jsonStr(msg.data()+4,msg.size()-4);
         try{
             response=json::parse(jsonStr);
         }catch(const exception& e){
-            Logger::instance().error(string("json parse failed: ")+e.what());
+            // Logger::instance().error(string("json parse failed: ")+e.what());
             continue;
         }
         if(msgid==expectedMsgId) return true;
@@ -100,7 +100,7 @@ void recvMessage(int fd){
                         FileClient::instance().receiveFile(packet,fd);
                     }else{
                         if(msg.size()<4){
-                            Logger::instance().error("invalid message size");
+                            // Logger::instance().error("invalid message size");
                             continue;
                         }
                         string jsonStr(msg.data()+4,msg.size()-4);
@@ -108,7 +108,7 @@ void recvMessage(int fd){
                         ClientMessageHandler::handle(js,fd);
                     }
                 }catch(const exception& e){
-                    Logger::instance().error(string("message error: ")+e.what());
+                    // Logger::instance().error(string("message error: ")+e.what());
                 }
             }
             continue;
@@ -118,7 +118,7 @@ void recvMessage(int fd){
             break;
         }
         if(errno==EINTR) continue;
-        Logger::instance().error("recv failed");
+        // Logger::instance().error("recv failed");
         break;
     }
 }
@@ -319,7 +319,7 @@ void MainMenu::run(int fd){
     }
 
     if(!Heartbeat::start()){
-        Logger::instance().error("heartbeat start failed");
+        // Logger::instance().error("heartbeat start failed");
         close(fd);
         return;
     }
@@ -346,7 +346,7 @@ void MainMenu::run(int fd){
 
         if(selectRet<0){
             if(errno==EINTR) continue;
-            Logger::instance().error("select");
+            // Logger::instance().error("select");
             break;
         }
 

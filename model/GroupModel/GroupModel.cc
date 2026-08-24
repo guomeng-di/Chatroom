@@ -1,5 +1,5 @@
  #include "GroupModel.h"
- #include "../../netlib/base/Logger.h"
+//  #include "../../netlib/base/Logger.h"
  #include "../../database/MySQLManager/MySQLManager.h"
  #include <iostream>
  using namespace std;
@@ -10,80 +10,80 @@
  bool GroupModel::createGroup(const string& groupName,const string& owner,const unordered_set<string>& members){
     MySQLManager mysql;
     if(!mysql.connect()){
-        Logger::instance().error("create group mysql connect failed");
+        // Logger::instance().error("create group mysql connect failed");
         return false;
     }
     if(!mysql.execute("START TRANSACTION")){
-        Logger::instance().error("create group start transaction failed");
+        // Logger::instance().error("create group start transaction failed");
         return false;
     }
     string sql="insert into chat_group(groupname,owner) values('"+groupName+"','"+owner+"')";
     if(!mysql.execute(sql)){
         mysql.execute("ROLLBACK");
-        Logger::instance().error("create group insert chat_group failed");
+        // Logger::instance().error("create group insert chat_group failed");
         return false;
     }
     sql="insert into group_member(groupname,username) values('"+groupName+"','"+owner+"')";
     if(!mysql.execute(sql)){
         mysql.execute("ROLLBACK");
-        Logger::instance().error("create group insert owner member failed");
+        // Logger::instance().error("create group insert owner member failed");
         return false;
     }
     for(const auto& member:members){
         sql="insert into group_member(groupname,username) values('"+groupName+"','"+member+"')";
         if(!mysql.execute(sql)){
             mysql.execute("ROLLBACK");
-            Logger::instance().error("create group insert member failed:"+member);
+            // Logger::instance().error("create group insert member failed:"+member);
             return false;
         }
     }
     if(!mysql.execute("COMMIT")){
         mysql.execute("ROLLBACK");
-        Logger::instance().error("create group commit failed");
+        // Logger::instance().error("create group commit failed");
         return false;
     }
-    Logger::instance().info("create group success");
+    // Logger::instance().info("create group success");
     return true;
 }
  bool GroupModel::addMember(const string& groupName,const string& username){
      MySQLManager mysql;
      if(!mysql.connect()){
-     Logger::instance().error("add group member mysql connect failed");
+    //  Logger::instance().error("add group member mysql connect failed");
      return false;
  }
      string sql="insert into group_member(groupname,username) values('"+groupName+"','"+username+"')";
      if(mysql.execute(sql)){
-     Logger::instance().info("add group member success");
+    //  Logger::instance().info("add group member success");
      return true;
  }
- Logger::instance().error("add group member failed");
+//  Logger::instance().error("add group member failed");
  return false;
  }
  bool GroupModel::leaveGroup(const string& groupName,const string& username){
      MySQLManager mysql;
      if(!mysql.connect()){
-     Logger::instance().error("leave group mysql connect failed");
+    //  Logger::instance().error("leave group mysql connect failed");
      return false;
  }
      string sql="delete from group_member where groupname='"+groupName+"' and username='"+username+"'";
      if(mysql.execute(sql)){
-     Logger::instance().info("leave group success");
+    //  Logger::instance().info("leave group success");
      return true;
  }
- Logger::instance().error("leave group failed");
+//  Logger::instance().error("leave group failed");
  return false;
  }
  unordered_set<string> GroupModel::getMembers(const string& groupName){
      unordered_set<string> res;
      MySQLManager mysql;
      if(!mysql.connect()){
-     Logger::instance().error("get group members mysql connect failed");
+    //  Logger::instance().error("get group members mysql connect failed");
      return res;
  }
      string sql="select username from group_member where groupname='"+groupName+"'";
      MYSQL* conn=mysql.getConnection();
      if(mysql_query(conn,sql.c_str())){
-     Logger::instance().error("get group members query failed");
+    //  Logger::instance().error("get group members query failed");
      return res;
  }
      MYSQL_RES* result=mysql_store_result(conn);
@@ -97,13 +97,13 @@
      unordered_set<string> res;
      MySQLManager mysql;
      if(!mysql.connect()){
-         Logger::instance().error("get user groups mysql connect failed");
+        //  Logger::instance().error("get user groups mysql connect failed");
          return res;
      }
      string sql="select groupname from group_member where username='"+username+"'";
      MYSQL* conn=mysql.getConnection();
      if(mysql_query(conn,sql.c_str())){
-         Logger::instance().error("get user groups query failed");
+        //  Logger::instance().error("get user groups query failed");
          return res;
  }
      MYSQL_RES* result=mysql_store_result(conn);
@@ -119,7 +119,7 @@
      string sql="select groupname from chat_group where groupname='"+groupName+"'";
      MYSQL* conn=mysql.getConnection();
      if(mysql_query(conn,sql.c_str())){
-     Logger::instance().error("check group exist query failed");
+    //  Logger::instance().error("check group exist query failed");
      return false;
  }
      MYSQL_RES* result=mysql_store_result(conn);
@@ -134,7 +134,7 @@
      string sql ="select username from group_member where groupname='"+groupName+"' and username='"+username+"'";
      MYSQL* conn=mysql.getConnection();
      if(mysql_query(conn,sql.c_str())){
-     Logger::instance().error("check group exist query failed");
+    //  Logger::instance().error("check group exist query failed");
      return false;
  }
      MYSQL_RES* result=mysql_store_result(conn);
@@ -227,15 +227,15 @@
  bool GroupModel::removeAllGroups(const string& username){
      MySQLManager mysql;
      if(!mysql.connect()){
-         Logger::instance().error("delete group member mysql connect failed");
+        //  Logger::instance().error("delete group member mysql connect failed");
          return false;
      }
      string sql ="delete from group_member where username='"+username+"'";
      if(mysql.execute(sql)){
-         Logger::instance().info(username+ " delete group member success");
+        //  Logger::instance().info(username+ " delete group member success");
          return true;
      }
-     Logger::instance().error(username+" delete group member failed");
+    //  Logger::instance().error(username+" delete group member failed");
      return false;
  }
  bool GroupModel::removeAdmin_(const string& username){
@@ -243,10 +243,10 @@
      if(!mysql.connect()) return false;
      string sql ="delete from group_admin where username='"+username+"'";
      if(mysql.execute(sql)){
-         Logger::instance().info("remove group admin success");
+        //  Logger::instance().info("remove group admin success");
          return true;
      }
-     Logger::instance().error(username+" delete group admin failed");
+    //  Logger::instance().error(username+" delete group admin failed");
      return false;
  }
  bool GroupModel::removeOwnerGroups(const string& username){

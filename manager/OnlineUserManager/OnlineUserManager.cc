@@ -2,7 +2,7 @@
 #include "../../model/FriendModel/FriendModel.h"
 #include <nlohmann/json.hpp>
 #include "../../netlib/net/TcpConnection/TcpConnection.h"
-#include <iostream>
+#include "../../netlib/base/Logger/Logger.h"
 #include "../../protocol/MsgId.h"
 #include "../../service/FriendStatusService/FriendStatusService.h"
 #include "../../protocol/MessageCodec/MessageCodec.h"
@@ -17,48 +17,38 @@ OnlineUserManager& OnlineUserManager::instance(){
 void OnlineUserManager::addUser(const std::string& username,TcpConnection* conn){
     users_[username]=conn;
 
-    cout<<"add online user:"
-        <<username
-        <<endl;
+    LOG_INFO<<"添加在线用户:"<<username;
 
 }
 bool OnlineUserManager::removeUser(const std::string& username, TcpConnection* conn){
-    cout<<"========== OnlineUserManager::removeUser =========="<<endl;
-    cout<<"username="<<username<<endl;
-    cout<<"isOnline="<<isOnline(username)<<endl;
+    LOG_INFO<<"========== OnlineUserManager::removeUser ==========";
+    LOG_INFO<<"用户名:"<<username;
+    LOG_INFO<<"当前在线状态:"<<isOnline(username);
     if(!isOnline(username)){
-        cout<<"user is already offline"<<endl;
+        LOG_INFO<<"用户已经处于离线状态";
         return false;
     }
     auto it = users_.find(username);
     // 同一用户可能已经重新登录，旧连接关闭时不能删除新连接。
     if(conn != nullptr && it != users_.end() && it->second != conn){
-        cout<<"user connection already replaced, keep current online entry"<<endl;
+        LOG_INFO<<"用户连接已经被替换,保持当前在线连接";
         return false;
     }
     users_.erase(username);
-    cout<<"user erased from online map: "<<username<<endl;
+    LOG_INFO<<"从在线用户列表删除用户:"<<username;
     FriendStatusService::notifyOffline(username);
     return true;
 }
 TcpConnection* OnlineUserManager::getConnection(const std::string& username){
     auto it=users_.find(username);
     //if(it!=users_.end()) return it->second;
-    if(it!=users_.end())
-    {
-        cout<<"find online user:"
-            <<username
-            <<" success"
-            <<endl;
+    if(it!=users_.end()){
+        LOG_INFO<<"查找在线用户:"<<username<<"成功";
 
         return it->second;
     }
 
-
-    cout<<"find online user:"
-        <<username
-        <<" failed"
-        <<endl;
+    LOG_INFO<<"查找在线用户:"<<username<<"失败";
 
     return NULL;
 }

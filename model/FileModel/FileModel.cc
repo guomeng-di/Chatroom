@@ -2,7 +2,7 @@
 #include "../../database/MySQLManager/MySQLManager.h"
 #include <iostream>
 #include <cstdlib>
-#include "../../netlib/base/Logger.h"
+// #include "../../netlib/base/Logger.h"
 using namespace std;
 typedef long long ll;
 FileModel::FileModel(){}
@@ -44,18 +44,18 @@ bool FileModel::saveFileInfo(const string& from,const string& to,const string& g
 bool FileModel::updateFileStatus(const string& fromname,const string& toname,const string& filename,int status){
     MySQLManager manager;
     if(!manager.connect()){
-        Logger::instance().error("mysql connect failed");
+        // Logger::instance().error("mysql connect failed");
         return false;
     }
     MYSQL* mysql=manager.getConnection();
     if(mysql==nullptr){
-        Logger::instance().error("mysql connection is null");
+        // Logger::instance().error("mysql connection is null");
         return false;
     }
 
     string sql="update file_info set status="+to_string(status)+" where fromname='"+fromname+"' and toname='" +toname  +"' and filename='"+filename+"'";
     if(mysql_query(mysql,sql.c_str())){
-        Logger::instance().error("update file status failed");
+        // Logger::instance().error("update file status failed");
         return false;
     }
     return true;
@@ -63,7 +63,7 @@ bool FileModel::updateFileStatus(const string& fromname,const string& toname,con
 string FileModel::getFileName(const string& fromname,const string& toname){
     MySQLManager mysql;
     if(!mysql.connect()){
-        Logger::instance().error("mysql connect failed");
+        // Logger::instance().error("mysql connect failed");
         return "";
     }
     string sql="select filename from file_info where fromname='"+fromname+"' and toname='"+toname+"' and status=0";;
@@ -72,7 +72,7 @@ string FileModel::getFileName(const string& fromname,const string& toname){
     //2查
     MYSQL_RES* res=mysql.query(sql);
     if(res==nullptr){
-        Logger::instance().error("query user sql failed");
+        // Logger::instance().error("query user sql failed");
         return 0;
     }
     MYSQL_ROW row=mysql_fetch_row(res);
@@ -89,14 +89,14 @@ string FileModel::getFileName(const string& fromname,const string& toname){
 bool FileModel::checkFileRequest(const string& fromname,const string& toname,const string& filename){
     MySQLManager mysql;
     if(!mysql.connect()){
-        Logger::instance().error("mysql connect failed");
+        // Logger::instance().error("mysql connect failed");
         return "";
     }
     string sql ="select id from file_info where ""fromname='"+fromname+ "' and toname='"+toname+"' and filename='"+filename+"' and status in (0,1)";
     cout<<"check sql:"<<sql<<endl;
     MYSQL_RES* res=mysql.query(sql);
     if(res==nullptr){
-        Logger::instance().error("query user sql failed");
+        // Logger::instance().error("query user sql failed");
         return 0;
     }
     MYSQL_ROW row=mysql_fetch_row(res);
@@ -110,7 +110,7 @@ bool FileModel::checkFileRequest(const string& fromname,const string& toname,con
 bool FileModel::checkGroupFileRequest(const string& fromname,const string& groupname,const string& filename){
     MySQLManager mysql;
     if(!mysql.connect()){
-        Logger::instance().error("mysql connect failed");
+        // Logger::instance().error("mysql connect failed");
         return false;
     }
     string sql=
@@ -132,7 +132,7 @@ bool FileModel::checkGroupFileRequest(const string& fromname,const string& group
 int FileModel::getFileId(const string& fromname,const string& toname,const string& groupname,const string& targetType,const string& filename){
     MySQLManager mysql;
     if(!mysql.connect()){
-        Logger::instance().error("mysql connect failed");
+        // Logger::instance().error("mysql connect failed");
         return -1;
     }
 
@@ -163,7 +163,7 @@ long long FileModel::getFileSize(int fileid)
     MySQLManager mysql;
 
     if(!mysql.connect()){
-        Logger::instance().error("get file size mysql connect failed");
+        // Logger::instance().error("get file size mysql connect failed");
         return -1;
     }
 
@@ -177,7 +177,7 @@ long long FileModel::getFileSize(int fileid)
     MYSQL_RES* res = mysql.query(sql);
 
     if(!res){
-        Logger::instance().error("get file size query failed");
+        // Logger::instance().error("get file size query failed");
         return -1;
     }
 
@@ -185,7 +185,7 @@ long long FileModel::getFileSize(int fileid)
 
     if(!row){
         mysql_free_result(res);
-        Logger::instance().error("file not found");
+        // Logger::instance().error("file not found");
         return -1;
     }
 
@@ -239,18 +239,18 @@ bool FileModel::saveFileReceiver(
 bool FileModel::updateFileReceiver(int fileid,const string& receiver,int status){
     MySQLManager mysql;
     if(!mysql.connect()){
-        Logger::instance().error("mysql connect failed");
+        // Logger::instance().error("mysql connect failed");
         return false;
     }
     string sql ="update file_receiver set status="+to_string(status)+" where fileid="+to_string(fileid)+" and receiver='"+receiver+"'";
     if(mysql.execute(sql)) return true;
-    Logger::instance().error("update file receiver failed");
+    // Logger::instance().error("update file receiver failed");
     return false;
 }
 bool FileModel::updateReceivedSize(int fileid,const string& receiver,long long size){
     MySQLManager mysql;
     if(!mysql.connect()){
-        Logger::instance().error("mysql connect failed");
+        // Logger::instance().error("mysql connect failed");
         return false;
     }
 
@@ -264,10 +264,10 @@ long long FileModel::getReceivedSize(int fileid,const string& receiver){
 
     if(!mysql.connect())
     {
-        Logger::instance()
-        .error(
-        "mysql connect failed"
-        );
+        // Logger::instance()
+        // .error(
+        // "mysql connect failed"
+        // );
 
         return -1;
     }
@@ -289,10 +289,10 @@ long long FileModel::getReceivedSize(int fileid,const string& receiver){
 
     if(res==nullptr)
     {
-        Logger::instance()
-        .error(
-        "query received size failed"
-        );
+        // Logger::instance()
+        // .error(
+        // "query received size failed"
+        // );
 
         return -1;
     }
@@ -342,13 +342,13 @@ vector<string> FileModel::getFileReceivers(int fileid){
 bool FileModel::checkAllReceiverFinish(int fileid){
     MySQLManager mysql;
     if(!mysql.connect()){
-        Logger::instance().error("mysql connect failed");
+        // Logger::instance().error("mysql connect failed");
         return false;
     }
     string sql ="select count(*) from file_receiver ""where fileid="+to_string(fileid)+" and status!=2";
     MYSQL_RES* res=mysql.query(sql);
     if(res==nullptr){
-        Logger::instance().error( "check receiver finish failed");
+        // Logger::instance().error( "check receiver finish failed");
         return false;
     }
     MYSQL_ROW row=mysql_fetch_row(res);
@@ -364,7 +364,7 @@ vector<string> FileModel::getUnfinishedFiles(const string& username)
     MySQLManager mysql;
 
     if(!mysql.connect()){
-        Logger::instance().error("mysql connect failed");
+        // Logger::instance().error("mysql connect failed");
         return files;
     }
 
@@ -382,7 +382,7 @@ vector<string> FileModel::getUnfinishedFiles(const string& username)
     MYSQL_RES* res = mysql.query(sql);
 
     if(res == nullptr){
-        Logger::instance().error("query unfinished files failed");
+        // Logger::instance().error("query unfinished files failed");
         cout << "query unfinished files failed" << endl;
         cout << "==========================================" << endl;
         return files;
@@ -429,7 +429,7 @@ int FileModel::getUnfinishedFileId(
     MySQLManager mysql;
 
     if(!mysql.connect()){
-        Logger::instance().error("mysql connect failed");
+        // Logger::instance().error("mysql connect failed");
         return -1;
     }
 
@@ -447,9 +447,9 @@ int FileModel::getUnfinishedFileId(
     MYSQL_RES* res = mysql.query(sql);
 
     if(res == nullptr){
-        Logger::instance().error(
-            "query unfinished file id failed"
-        );
+        // Logger::instance().error(
+        //     "query unfinished file id failed"
+        // );
         return -1;
     }
 
@@ -479,13 +479,13 @@ bool FileModel::getUnfinishedFileInfo(
 {
     MySQLManager mysql;
     if(!mysql.connect()){
-        Logger::instance().error("mysql connect failed");
+        // Logger::instance().error("mysql connect failed");
         return false;
     }
 
     MYSQL* conn = mysql.getConnection();
     if(conn == nullptr){
-        Logger::instance().error("mysql connection is null");
+        // Logger::instance().error("mysql connection is null");
         return false;
     }
 
@@ -516,7 +516,7 @@ bool FileModel::getUnfinishedFileInfo(
 
     MYSQL_RES* res = mysql.query(sql);
     if(res == nullptr){
-        Logger::instance().error("query unfinished file info failed");
+        // Logger::instance().error("query unfinished file info failed");
         return false;
     }
 

@@ -3,7 +3,7 @@
 #include "../../../protocol/MsgId.h"
 #include "../../FileClient/FileClient.h"
 #include "../../Heartbeat/Heartbeat.h"
-#include "../../../netlib/base/Logger.h"
+#include "../../../netlib/base/Logger/Logger.h"
 #include "../../../netlib/base/SocketUtil/SocketUtil.h"
 #include "../../../src/config.h"
 #include "../Color.h"
@@ -48,12 +48,13 @@ void FileMenu::run(int fd,const string& username){
 
         if(selectRet<0){
             if(errno==EINTR) continue;
-            Logger::instance().error("select failed");
+            // Logger::instance().error("select failed");
             break;
         }
 
         if(heartbeatFd>=0&&FD_ISSET(heartbeatFd,&readfds)){
             Heartbeat::check(fd);
+            continue;
         }
 
         if(!FD_ISSET(STDIN_FILENO,&readfds)) continue;
@@ -170,7 +171,8 @@ void FileMenu::run(int fd,const string& username){
 
             string filename;
             cout<<"文件名:";
-            cin>>filename;
+            cin.ignore(numeric_limits<streamsize>::max(),'\n');
+            getline(cin,filename);
 
             PendingFile file=FileClient::instance().getPendingFile(fromname,filename);
 

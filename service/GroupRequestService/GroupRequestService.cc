@@ -4,7 +4,7 @@
 #include "../../manager/OnlineUserManager/OnlineUserManager.h"
 #include "../../netlib/net/TcpConnection/TcpConnection.h"
 #include "../../protocol/MsgId.h"
-#include "../../netlib/base/Logger.h"
+#include "../../netlib/base/Logger/Logger.h"
 #include <unordered_set>
 #include "../../model/UserModel/UserModel.h"
 #include <string>
@@ -60,7 +60,7 @@ json GroupRequestService::handleGroupRequest(const json& js){
     res["msgid"]=HANDLE_GROUP_REQUEST_ACK;
     //
     if(!js.contains("groupname")||!js.contains("username")||!js.contains("operator")||!js.contains("accept")){
-        Logger::instance().error("handle group request lack params");
+        LOG_ERROR<<"处理群申请失败，缺少参数";
         res["errno"]=1;
         res["message"]="lack params";
         return res;
@@ -91,7 +91,7 @@ json GroupRequestService::handleGroupRequest(const json& js){
     }
     //检查操作者权限
     if(!groupModel.isOwner(groupname,operatorName)&&!groupModel.isAdmin(groupname,operatorName)){
-        Logger::instance().error("handle group request permission denied");
+        LOG_ERROR<<"处理群申请失败，操作者权限不足";
         res["errno"]=1;
         res["message"]="permission denied";
         return res;
@@ -99,7 +99,7 @@ json GroupRequestService::handleGroupRequest(const json& js){
     //检查用户是否存在
     UserModel userModel;
     if(!userModel.queryUserByUsername(username)){
-         Logger::instance().error("handle group request user not exist: "+username);
+         LOG_ERROR<<"处理群申请失败，用户不存在:"<<username;
         res["errno"]=1;
         res["message"]="user not exist";
         return res;
@@ -122,20 +122,19 @@ json GroupRequestService::handleGroupRequest(const json& js){
         }
     }
     if(!requestExists){
-        Logger::instance().error("group request not exist: " +groupname + " " + username);
+        LOG_ERROR<<"群申请不存在，群:"<<groupname<<" 用户:"<<username;
         res["errno"] = 1;
         res["message"] = "group request not exist";
         return res;
-    }
-    //同意
+    }    //同意
     if(!groupModel.addMember(groupname,username)){
-            Logger::instance().error("add group member failed");
+            LOG_ERROR<<"添加群成员失败";
             res["errno"]=1;
             res["message"]="add member failed";
             return res;
         }
         if(!requestModel.deleteRequest(groupname,username)){
-            Logger::instance().error("delete group request failed");
+            LOG_ERROR<<"删除群申请记录失败";
         res["errno"]=0;
         res["message"]="accept success";
         }
@@ -159,6 +158,9 @@ json GroupRequestService::handleGroupRequest(const json& js){
         if(accept==1) notify["message"]="join group success";
         else  notify["message"]="join group rejected";
         conn->send(notify.dump());
+        LOG_INFO<<"群申请处理结果通知发送成功，用户:"<<username;
+    }else{
+        LOG_INFO<<"用户不在线，无法发送群申请处理通知:"<<username;
     }
     return res;
 }

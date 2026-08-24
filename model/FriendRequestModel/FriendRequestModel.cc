@@ -1,7 +1,7 @@
 #include "FriendRequestModel.h"
 #include "../../database/MySQLManager/MySQLManager.h"
 #include <iostream>
-#include "../../netlib/base/Logger.h"
+// #include "../../netlib/base/Logger.h"
 
 using namespace std;
 //初始化静态成员
@@ -11,9 +11,6 @@ FriendRequestModel::FriendRequestModel(){
 FriendRequestModel::~FriendRequestModel(){
 }
 bool FriendRequestModel::addRequest(const string& from,const string& to){
-    // if(from==to||requests_[to].count(from)) return false;
-    // requests_[to].insert(from);
-    // return true;
     MySQLManager mysql;
     if(!mysql.connect())
 {
@@ -56,7 +53,7 @@ vector<FriendRequest> FriendRequestModel::getRequests(const string& username){
     MYSQL* conn=mysql.getConnection();
     if(conn==nullptr) return res;
     if(mysql_query(conn,sql.c_str())){
-        Logger::instance().error(mysql_error(conn));
+        // Logger::instance().error(mysql_error(conn));
         return res;
     }
     MYSQL_RES* result=mysql_store_result(conn);
@@ -89,14 +86,14 @@ return false;
 bool FriendRequestModel::removeAllRequests(const string& username){
     MySQLManager mysql;
     if(!mysql.connect()){
-        Logger::instance().error("delete friend request mysql connect failed");
+        // Logger::instance().error("delete friend request mysql connect failed");
         return 0;
     }
     string sql="delete from friend_request where fromname='"+username+"' or toname='"+username+"'";
     if(mysql.execute(sql)){
-        Logger::instance().info(username+" delete friend request success");
+        // Logger::instance().info(username+" delete friend request success");
         return true;
     }
-    Logger::instance().error(username+" delete friend request failed");
+    // Logger::instance().error(username+" delete friend request failed");
     return false;
 }

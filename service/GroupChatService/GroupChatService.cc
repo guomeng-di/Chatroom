@@ -6,84 +6,65 @@
 #include "../../netlib/net/TcpConnection/TcpConnection.h"
 #include <iostream>
 #include "../../protocol/MsgId.h"
-#include "../../netlib/base/Logger.h"
+#include "../../netlib/base/Logger/Logger.h"
 using namespace std;
 GroupChatService::GroupChatService(){}
 GroupChatService::~GroupChatService(){}
 json GroupChatService::groupChat(const json& js,TcpConnection* conn){
     json response;
     response["msgid"]=GROUP_CHAT_ACK;
-    //
     if(!js.contains("groupname")||!js.contains("message")){
-        Logger::instance().error( "group chat lack params");
+        LOG_ERROR<<"群聊请求缺少参数";
         response["errno"]=1,response["message"]="lack params";
         return response;
     }
     string groupName=js["groupname"];
-    //string username=js["from"];
     string username=conn->getUsername();
     string message=js["message"];
-
-    //
     if(groupName.empty()||username.empty()||message.empty()){
-        Logger::instance().error( "group chat params empty");
+        LOG_ERROR<<"群聊参数为空";
         response["errno"]=1,response["message"]="params cannot empty";
         return response;
     }
-    //
     GroupModel groupModel;
     if(!groupModel.groupExist(groupName)){
-         Logger::instance().error(username+" send message to group "+ groupName+ " but group not exist");
+        LOG_ERROR<<username<<"发送群消息失败，群不存在:"<<groupName;
         response["errno"]=1,response["message"]="group not exist";
         return response;
-    }//判断群是否存在
+    }
     if(!groupModel.isMember(groupName,username)){
-        Logger::instance().error(username+" is not member of group "+groupName);
+        LOG_ERROR<<username<<"不是群成员，无法发送群消息:"<<groupName;
         response["errno"]=1,response["message"]="not group member";
         return response;
-    }//判断发送者是不是群成员
-
-    // 保存历史消息
+    }
     GroupMessageModel messageModel;
-
-if(!messageModel.saveMessage(groupName,username,message)){
-    Logger::instance().error("save group message failed");
-}
-
-    //获取群成员
+    if(!messageModel.saveMessage(groupName,username,message)){
+        LOG_ERROR<<"保存群聊历史消息失败";
+    }
     unordered_set<string> members=groupModel.getMembers(groupName);
-    //构造群消息
     json sendMsg;
     sendMsg["msgid"]=GROUP_CHAT_NOTIFY;
     sendMsg["groupname"]=groupName;
     sendMsg["from"]=username;
     sendMsg["message"]=message;
-
     string data=sendMsg.dump();
-    
     int sendCount=0,offlineCount=0;
-    //遍历群成员发送
     for(auto& member:members){
-        if(member==username) continue;
+        if(member==username){
+            continue;
+        }
         TcpConnection* target=OnlineUserManager::instance().getConnection(member);
-    //在线
-    if(target){
-        target->send(data);
-        sendCount++;
-        //cout<<"send group message to online user:"<<member<<endl;
+        if(target){
+            target->send(data);
+            sendCount++;
+        }else{
+            if(RedisManager::instance().connect()){
+                RedisManager::instance().saveGroupOfflineMessage(member,data);
+                offlineCount++;
+            }
+        }
     }
-    //离线
-    else{
-        //cout<<"save group offline message:"<<member<<endl;
-        //Redis保存离线消息需要
-        if(RedisManager::instance().connect()){
-        RedisManager::instance().saveGroupOfflineMessage(member,data);
-        offlineCount++;
-    }
-    }
-}
-    Logger::instance().info(username+" send group message group="+groupName+" online="+to_string(sendCount)+" offline="+to_string(offlineCount));
-    //回复发送者
+    LOG_INFO<<username<<"发送群消息成功，群:"<<groupName<<" 在线人数:"<<sendCount<<" 离线人数:"<<offlineCount;
     response["errno"]=0;
     response["message"]="group send success";
     return response;

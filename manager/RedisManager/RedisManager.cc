@@ -1,12 +1,9 @@
 #include "RedisManager.h"
 #include <hiredis/hiredis.h>
-#include <iostream>
-#include "../../netlib/base/Logger.h"
-
+#include "../../netlib/base/Logger/Logger.h"
 using namespace std;
 RedisManager& RedisManager::instance()
 {
-    // static局部变量：程序第一次调用才创建，全局仅此一份
     static RedisManager obj;
     return obj;
 }
@@ -18,7 +15,6 @@ RedisManager::~RedisManager(){
         redisFree((redisContext*)redisContext_);
 }
 bool RedisManager::connect(){
-    // 复用正常连接，避免每次心跳都创建新的 hiredis 上下文。
     if(redisContext_ != nullptr){
         redisContext* existing = (redisContext*)redisContext_;
         if(existing->err == 0) return true;
@@ -27,24 +23,19 @@ bool RedisManager::connect(){
     }
     redisContext* context =redisConnect("127.0.0.1",6379);
     if(context==nullptr||context->err){
-        cout<<"redis connect fail"<<endl;
+        LOG_ERROR<<"Redis连接失败";
         return false;
     }
     redisContext_=context;
-    cout<<"redis connect success"<<endl;
+    LOG_INFO<<"Redis连接成功";
     return true;
 }
 bool RedisManager::saveOfflineMessage(const std::string& username,const std::string& message){
-    cout<<"save offline message:"<<endl;
-    cout<<"user="<<username<<endl;
-    cout<<"msg="<<message<<endl;
-
-
+    LOG_INFO<<"保存用户离线消息 用户="<<username;
     if(redisContext_==NULL) return 0;
     redisContext* context=(redisContext*)redisContext_;
     string key="offline:private:"+username;
-    redisReply* reply=(redisReply*)redisCommand(context,"RPUSH %s %b",key.c_str(),message.data(),
-    message.size());
+    redisReply* reply=(redisReply*)redisCommand(context,"RPUSH %s %b",key.c_str(),message.data(),message.size());
     if(reply==NULL) return 0;
     freeReplyObject(reply);
     return 1;
@@ -54,19 +45,10 @@ vector<string> RedisManager::getOfflineMessage(const string& username){
     if(redisContext_==NULL) return messages;
     redisContext* context=(redisContext*)redisContext_;
     string key="offline:private:"+username;
-
-    cout<<"get offline key="
-        <<key
-        <<endl;
-
-
+    LOG_INFO<<"获取用户离线消息 key="<<key;
     redisReply* reply=(redisReply*)redisCommand(context,"LRANGE %s 0 -1",key.c_str());
     if(reply==NULL) return messages;
-
-     cout<<"redis elements="
-        <<reply->elements
-        <<endl;
-        
+    LOG_INFO<<"获取离线消息数量="<<to_string(reply->elements);
     for(size_t i=0;i<reply->elements;i++){
         if(reply->element[i]->str) messages.push_back(reply->element[i]->str);
     }
@@ -80,22 +62,12 @@ void RedisManager::clearOfflineMessage(const string& username){
     redisReply* reply =(redisReply*)redisCommand(context,"DEL %s",key.c_str());
     if(reply) freeReplyObject(reply);
 }
-
-
-
-
-
 bool RedisManager::saveGroupOfflineMessage(const std::string& username,const std::string& message){
-    cout<<"save group_offline message:"<<endl;
-    cout<<"user="<<username<<endl;
-    cout<<"msg="<<message<<endl;
-
-
+    LOG_INFO<<"保存群聊离线消息 用户="<<username;
     if(redisContext_==NULL) return 0;
     redisContext* context=(redisContext*)redisContext_;
     string key="offline:group:"+username;
-    redisReply* reply=(redisReply*)redisCommand(context,"RPUSH %s %b",key.c_str(),message.data(),
-    message.size());
+    redisReply* reply=(redisReply*)redisCommand(context,"RPUSH %s %b",key.c_str(),message.data(),message.size());
     if(reply==NULL) return 0;
     freeReplyObject(reply);
     return 1;
@@ -105,19 +77,10 @@ vector<string> RedisManager::getGroupOfflineMessage(const string& username){
     if(redisContext_==NULL) return messages;
     redisContext* context=(redisContext*)redisContext_;
     string key="offline:group:"+username;
-
-    cout<<"get group offline key="
-        <<key
-        <<endl;
-
-
+    LOG_INFO<<"获取群聊离线消息 key="<<key;
     redisReply* reply=(redisReply*)redisCommand(context,"LRANGE %s 0 -1",key.c_str());
     if(reply==NULL) return messages;
-
-     cout<<"redis elements="
-        <<reply->elements
-        <<endl;
-        
+    LOG_INFO<<"获取群聊离线消息数量="<<to_string(reply->elements);
     for(size_t i=0;i<reply->elements;i++){
         if(reply->element[i]->str) messages.push_back(reply->element[i]->str);
     }
@@ -126,64 +89,36 @@ vector<string> RedisManager::getGroupOfflineMessage(const string& username){
 }
 void RedisManager::clearGroupOfflineMessage(const string& username){
     if(redisContext_==nullptr) return;
-    redisContext* context =(redisContext*) redisContext_;
+    redisContext* context =(redisContext*)redisContext_;
     string key="offline:group:"+username;
     redisReply* reply =(redisReply*)redisCommand(context,"DEL %s",key.c_str());
     if(reply) freeReplyObject(reply);
 }
-
-
 bool RedisManager::setOnline(const string& username){
     if(redisContext_==nullptr) return 0;
     redisContext* context=(redisContext*) redisContext_;
     string key="online:"+username;
-    // 客户端异常退出时让在线状态自动过期，正常心跳会刷新该键。
     redisReply* reply=(redisReply*)redisCommand(context,"SET %s 1 EX 30",key.c_str());
     if(reply==nullptr){
-        Logger::instance().error("redis set online failed");
+        LOG_ERROR<<"Redis设置在线状态失败";
         return false;
     }
     if(reply) freeReplyObject(reply);
     return 1;
 }
 bool RedisManager::setOffline(const string& username){
-
     if(redisContext_==nullptr)
         return false;
-
-    redisContext* context =
-        (redisContext*)redisContext_;
-
+    redisContext* context=(redisContext*)redisContext_;
     string key = "online:" + username;
-
-    cout << "========== REDIS SET OFFLINE =========="
-         << endl;
-
-    cout << "username="
-         << username
-         << endl;
-
-    cout << "key="<< key<< endl;
-
-    redisReply* reply =
-        (redisReply*)redisCommand(
-            context,
-            "DEL %s",
-            key.c_str()
-        );
-
+    LOG_INFO<<"设置用户离线 用户="<<username;
+    redisReply* reply =(redisReply*)redisCommand(context,"DEL %s",key.c_str());
     if(reply == nullptr){
-        cout << "redis DEL failed"<< endl;
-
+        LOG_ERROR<<"Redis删除在线状态失败";
         return false;
     }
-
-    cout << "DEL result="<< reply->integer<< endl;
-
+    LOG_INFO<<"Redis删除在线状态成功 用户="+username;
     freeReplyObject(reply);
-
-    cout << "========================================"<< endl;
-
     return true;
 }
 bool RedisManager::isOnline(const string& username){
@@ -195,7 +130,6 @@ bool RedisManager::isOnline(const string& username){
     bool result=false;
     if(reply->integer==1) result=true;
     freeReplyObject(reply);
-    // 为升级前没有 TTL 的在线键补上过期时间，避免历史脏数据永久在线。
     if(result){
         redisReply* ttlReply=(redisReply*)redisCommand(context,"TTL %s",key.c_str());
         if(ttlReply!=nullptr){
@@ -208,11 +142,9 @@ bool RedisManager::isOnline(const string& username){
     }
     return result;
 }
-
-
 bool RedisManager::saveVerifyCode(const string& target,const string& code){
     if(redisContext_==nullptr) return 0;
-    redisContext* context=(redisContext*) redisContext_;
+    redisContext* context=(redisContext*)redisContext_;
     string key="verify:"+target;
     redisReply* reply=(redisReply*)redisCommand(context,"SET %s %s EX 300",key.c_str(),code.c_str());
     if(reply==nullptr) return false;
@@ -221,50 +153,43 @@ bool RedisManager::saveVerifyCode(const string& target,const string& code){
 }
 string RedisManager::getVerifyCode(const string& target){
     if(redisContext_==nullptr) return "";
-    redisContext* context=(redisContext*) redisContext_;
+    redisContext* context=(redisContext*)redisContext_;
     string key="verify:"+target;
-    Logger::instance().info( "redis get key="+key);
-    cout<<"redis get key="<<key<<endl;
+    LOG_INFO<<"Redis获取验证码 key="<<key;
     redisReply* reply=(redisReply*)redisCommand(context,"GET %s",key.c_str());
     if(reply==nullptr){
-        Logger::instance().error( "redis reply null");
-        cout<<"redis reply null";
+        LOG_ERROR<<"Redis返回结果为空";
         return "";
     }
-
     if(reply->type==REDIS_REPLY_STRING){
         string code=reply->str;
-        Logger::instance().info( "redis get code="+code);
-        cout<<"redis get code="<<code<<endl;
+        LOG_INFO<<"Redis获取验证码成功";
         freeReplyObject(reply);
         return code;
     }
-    Logger::instance().error("redis reply type not string");
-    cout<<"redis reply type not string"<<endl;
+    LOG_ERROR<<"Redis返回验证码类型错误";
     freeReplyObject(reply);
     return "";
 }
 bool RedisManager::deleteVerifyCode(const string& target){
     if(redisContext_==nullptr) return 0;
-    redisContext* context=(redisContext*) redisContext_;
+    redisContext* context=(redisContext*)redisContext_;
     string key="verify:"+target;
     redisReply* reply=(redisReply*)redisCommand(context,"DEL %s",target.c_str());
-    freeReplyObject(reply);
+    if(reply) freeReplyObject(reply);
     return 1;
 }
-
-
 bool RedisManager::saveOfflineFileRequest(const string& username,const json& js){
     if(redisContext_==nullptr) return 0;
-    redisContext* context=(redisContext*) redisContext_;
+    redisContext* context=(redisContext*)redisContext_;
     string key="offline:file:"+username;
     redisReply* reply=(redisReply*)redisCommand(context,"LPUSH %s %s",key.c_str(),js.dump().c_str());
     if(reply==nullptr){
-        Logger::instance().error("redis save offline file failed");
+        LOG_ERROR<<"Redis保存离线文件请求失败";
         return false;
     }
     freeReplyObject(reply);
-    Logger::instance().info("save offline file key="+key);
+    LOG_INFO<<"保存离线文件请求成功 key="<<key;
     return 1;
 }
 vector<string> RedisManager::getOfflineFile(const string& username){
@@ -272,10 +197,8 @@ vector<string> RedisManager::getOfflineFile(const string& username){
     if(redisContext_==NULL) return messages;
     redisContext* context=(redisContext*)redisContext_;
     string key="offline:file:"+username;
-
     redisReply* reply=(redisReply*)redisCommand(context,"LRANGE %s 0 -1",key.c_str());
     if(reply==NULL) return messages;
-
     for(size_t i=0;i<reply->elements;i++){
         if(reply->element[i]->str) messages.push_back(reply->element[i]->str);
     }
@@ -289,25 +212,20 @@ void RedisManager::clearOfflineFiles(const string& username){
     redisReply* reply =(redisReply*)redisCommand(context,"DEL %s",key.c_str());
     if(reply) freeReplyObject(reply);
 }
-
 bool RedisManager::saveOfflineGroupInvite(const string& username,const json& js){
     if(redisContext_==nullptr) return false;
     redisContext* context=(redisContext*)redisContext_;
     string key="offline:group_invite:"+username;
     string data=js.dump();
-
     redisReply* reply=(redisReply*)redisCommand(context,"RPUSH %s %b",key.c_str(),data.data(),data.size());
-
     if(reply==nullptr){
-        Logger::instance().error("redis save offline group invite failed");
+        LOG_ERROR<<"Redis保存离线群邀请失败";
         return false;
     }
-
     freeReplyObject(reply);
-    Logger::instance().info("save offline group invite success key="+key);
+    LOG_INFO<<"保存离线群邀请成功 key="<<key;
     return true;
 }
-
 vector<string> RedisManager::getOfflineGroupInvite(const string& username){
     vector<string> invites;
     if(redisContext_==nullptr) return invites;

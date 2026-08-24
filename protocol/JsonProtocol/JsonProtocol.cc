@@ -3,7 +3,7 @@
 #include <iostream>
 #include <exception>
 #include <string>  
-#include "../../netlib/base/Logger.h"
+#include "../../netlib/base/Logger/Logger.h"
 using namespace std;
 std::string JsonProtocol::encode(const json& js){
     return js.dump();

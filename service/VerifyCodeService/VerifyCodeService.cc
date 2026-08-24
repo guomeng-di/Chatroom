@@ -5,13 +5,13 @@
 #include "../../protocol/MsgId.h"
 #include "../../netlib/net/TcpConnection/TcpConnection.h"
 
-#include "../../netlib/base/Logger.h"
+#include "../../netlib/base/Logger/Logger.h"
 using namespace std;
 json VerifyCodeService::sendCode(const json& js){
     json res;
     res["msgid"]=SEND_VERIFY_CODE_ACK;
     if(!js.contains("email")){
-        Logger::instance().error("verify code lack email");
+        LOG_ERROR<<"获取验证码缺少邮箱";
         res["errno"]=1;
         res["message"]="email empty";
         return res;
@@ -19,11 +19,11 @@ json VerifyCodeService::sendCode(const json& js){
     string email=js["email"];
     //生成验证码
     string code=VerifyCode::generate();
-    Logger::instance().info("verify code="+code);
+    LOG_INFO<<"生成验证码:"<<code;
 
     //redis保存
     if(!RedisManager::instance().connect()){ 
-        Logger::instance().error("redis connect failed");
+        LOG_ERROR<<"Redis连接失败";
         res["errno"]=1;
         res["message"]="send verify code failed";
         return res;

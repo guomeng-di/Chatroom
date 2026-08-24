@@ -20,7 +20,7 @@
 #include "../DeleteAccountService/DeleteAccountService.h"
 #include "../ResetPasswordService/ResetPasswordService.h"
 #include "../FileService/FileService.h"
-#include "../../netlib/base/Logger.h"
+#include "../../netlib/base/Logger/Logger.h"
 using namespace std;
 
 MessageDispatcher::MessageDispatcher(){}
@@ -28,8 +28,7 @@ MessageDispatcher::~MessageDispatcher(){}
 
 void MessageDispatcher::dispatch(const json& js,TcpConnection* conn){
     if(!js.contains("msgid")){
-        //cout<<"json no msgid"<<endl;
-        Logger::instance().error("json message no msgid");
+        LOG_ERROR<<"收到消息缺少消息编号";
         return;
     }
     int msgid=js["msgid"];
@@ -38,10 +37,6 @@ void MessageDispatcher::dispatch(const json& js,TcpConnection* conn){
 //1登录
         case LOGIN_MSG:{
             json response=LoginService::login(js,conn);
-        //     cout<<"dispatcher send login:"
-        // <<response.dump()
-        // <<endl;
-            //conn->send(response.dump());
             break;
         }
 
@@ -235,7 +230,7 @@ void MessageDispatcher::dispatch(const json& js,TcpConnection* conn){
 //29心跳检测
 //现在,客户端手动输入29,可以检测心跳,发送消息回复它:收到
         case HEARTBEAT_MSG:{
-            Logger::instance().info("receive heartbeat");
+            LOG_INFO<<"收到心跳消息";
             conn->updateActiveTime();
             // 刷新 Redis 在线状态，客户端异常退出后状态会自动过期。
             if(!conn->getUsername().empty() && RedisManager::instance().connect()){
@@ -280,16 +275,7 @@ void MessageDispatcher::dispatch(const json& js,TcpConnection* conn){
             conn->send(res.dump());
             break;
         }
-// //35发送文件
-//         case FILE_DATA_MSG:{
-//             ReceiveFileInfo info;
-//             info.fileid =js["fileid"];
-//             info.filename =js["filename"];
-//             info.filesize =js["filesize"];
-//             info.receivedSize=js["received_size"];
-//             FileService::receiveFileData(info,conn);
-//             break;
-//         }
+
 //36发送完毕
         case FILE_FINISH_MSG:{
             FileService::finishFile(js,conn);
@@ -302,41 +288,16 @@ void MessageDispatcher::dispatch(const json& js,TcpConnection* conn){
             conn->send(res.dump());
             break;
         }
-// //37查询blocks
-//         case QUERY_SEND_FILE_BLOCK_MSG:{
-//             json res=FileService::querySendFileBlock(js,conn);
-//             conn->send(res.dump());
-//             cout<<"query file block"<<endl;
-//             break;
-//         }
 
-        //
-//         case FILE_BLOCK_ACK:{
-//             FileService::fileBlockAck(js,conn);
-//             break;
-// }
 //41邀请进群
 case INVITE_GROUP_MSG:{
     json response=GroupManageService::inviteGroup(js);
     conn->send(response.dump());
     break;
-}
-        
-// //38离线后登录,文件
-//         case FILE_RESUME_SEND:{
-//             json res=FileService::resumeFile(js,conn);
-//             conn->send(res.dump());
-//             break;
-//         }
-        
-        
-        default:
-            Logger::instance().error(
-        "unknown msgid="+
-        to_string(msgid)
-    );
-        //cout<<"unknown msgid:"<<msgid<<endl;
-            break;
+}     
+ default:
+        LOG_ERROR<<"收到未知消息编号:"<<to_string(msgid);
+        break;
     }
 
 }

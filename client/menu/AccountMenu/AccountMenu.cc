@@ -2,7 +2,7 @@
 #include "../../../protocol/MessageCodec/MessageCodec.h"
 #include "../../../protocol/MsgId.h"
 #include "../../../netlib/base/SocketUtil/SocketUtil.h"
-#include "../../../netlib/base/Logger.h"
+#include "../../../netlib/base/Logger/Logger.h"
 #include "../../Heartbeat/Heartbeat.h"
 #include "../Color.h"
 #include <nlohmann/json.hpp>
@@ -54,7 +54,7 @@ void AccountMenu::run(int fd,const string& username){
 
         if(selectRet<0){
             if(errno==EINTR) continue;
-            Logger::instance().error("select failed");
+            // Logger::instance().error("select failed");
             break;
         }
 
