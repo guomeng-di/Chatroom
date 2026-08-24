@@ -127,7 +127,8 @@ json GroupService::createGroup(const json& js){
     response["errno"]=0;
     response["message"]="create group success";
     return response;
-}json GroupService::joinGroup(const json& js){
+}
+json GroupService::joinGroup(const json& js){
     json response;
     response["msgid"]=JOIN_GROUP_ACK;
     if(!js.contains("groupname")||!js.contains("username")){

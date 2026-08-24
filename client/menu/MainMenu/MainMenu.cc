@@ -3,6 +3,8 @@
 #include <unistd.h>
 #include <arpa/inet.h>
 #include <sys/socket.h>
+#include <termios.h>
+#include <unistd.h>
 #include <sys/select.h>
 #include <cstdint>
 #include <algorithm>
@@ -159,12 +161,30 @@ void printMainMenu(){
 )";
     cout<<COLOR_RESET;
 }
+string getPassword(){
+    termios oldt,newt;
 
+    tcgetattr(STDIN_FILENO,&oldt);
+
+    newt=oldt;
+    newt.c_lflag &= ~(ECHO);
+
+    tcsetattr(STDIN_FILENO,TCSANOW,&newt);
+
+    string password;
+    cin>>password;
+
+    tcsetattr(STDIN_FILENO,TCSANOW,&oldt);
+
+    cout<<endl;
+
+    return password;
+}
 bool login(int fd){
     cout<<"登录:"<<endl;
     cout<<"username:"; cin>>username;
     string password;
-    cout<<"password:"; cin>>password;
+    cout<<"password:"; password=getPassword();
     json loginMsg;
     loginMsg["msgid"]=LOGIN_MSG;
     loginMsg["username"]=username;
