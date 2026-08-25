@@ -28,7 +28,7 @@ EventLoop::~EventLoop(){
 void EventLoop::loop(){//不断等待事件发生，然后找到对应的Channel，让Channel处理事件
     LOG_INFO<<"EventLoop开始运行";
     while(!quit_){
-        int n=epoller_.wait(1000);//最多等1000ms=1s就要醒来检查超时
+        int n=epoller_.wait(-1);//最多等1000ms=1s就要醒来检查超时
         LOG_INFO<<"epoll等待返回事件数量="<<n;
         if(n<0){
             LOG_ERROR<<"epoll_wait执行失败";
@@ -91,6 +91,10 @@ void EventLoop::addConnection(int fd,TcpConnection* conn){
 }
 
 void EventLoop::queueInLoop(std::function<void()> cb){
+    if(isInLoopThread()){
+        cb();
+        return;
+    }
     {
         std::lock_guard<std::mutex> lock(mutex_);
         pendingFunctors_.push_back(cb);

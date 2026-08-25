@@ -10,7 +10,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <iostream>
-
+#include <netinet/tcp.h>
 using namespace std;
 Acceptor::Acceptor(EventLoop& loop,const std::string& ip,int port):
 loop_(loop),ip_(ip),port_(port),
@@ -84,6 +84,9 @@ void Acceptor::handleRead(){//setReadCallback中参数说明了"发生某种事�
     sockaddr_in addr{};
     socklen_t len=sizeof(addr);
     int client_fd=accept(listen_fd_,(sockaddr*)&addr,&len);
+    int flag = 1;
+    setsockopt(client_fd,IPPROTO_TCP,TCP_NODELAY,&flag,
+    sizeof(flag));
     if(client_fd < 0){
         if(errno==EAGAIN ||errno==EWOULDBLOCK){
         //连接已经全部取完

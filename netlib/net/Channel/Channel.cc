@@ -44,6 +44,16 @@ void Channel::handleEvent(){
         LOG_WARN<<"检测到EPOLLHUP连接挂断 fd="<<fd_;
     }
 
+    if(revents & EPOLLOUT){
+        LOG_INFO<<"检测到可写事件EPOLLOUT fd="<<fd_;
+
+        if(writeCallback_){
+            LOG_INFO<<"执行写回调 fd="<<fd_;
+            writeCallback_();
+        }
+        return;
+    }
+
     if(revents & EPOLLIN){
         LOG_INFO<<"检测到可读事件EPOLLIN fd="<<fd_;
 
@@ -52,15 +62,6 @@ void Channel::handleEvent(){
             readCallback_();
         }
         return;
-    }
-
-    if(revents & EPOLLOUT){
-        LOG_INFO<<"检测到可写事件EPOLLOUT fd="<<fd_;
-
-        if(writeCallback_){
-            LOG_INFO<<"执行写回调 fd="<<fd_;
-            writeCallback_();
-        }
     }
 
     if((revents & EPOLLHUP) && closeCallback_){

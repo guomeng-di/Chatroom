@@ -15,18 +15,64 @@ LoginService::LoginService(){
 LoginService::~LoginService(){
 }
 json LoginService::login(const json& js,TcpConnection* conn){
-    string username=js["username"];
-    string password=js["password"];
-    LOG_INFO<<"用户登录请求，用户名:"<<username;
+
+    string loginType=js.value("loginType","password");
+    string username=js.value("username","");
+    string password=js.value("password","");
+
+
     json response;
     UserModel model;
-    string passwordHash=HashSHA256::encode(password);
-    bool flag=model.queryUser(username,passwordHash);
+    bool flag=false;
+
+
+    LOG_INFO<<"用户登录请求，登录类型:"<<loginType;
+
+    if(loginType=="code"){
+
+        string email=js.value("email","");
+        string code=js.value("code","");
+
+
+        if(!RedisManager::instance().connect()){
+
+            LOG_ERROR<<"Redis连接失败";
+
+            response["msgid"]=LOGIN_ACK;
+            response["errno"]=1;
+            response["message"]="redis error";
+
+            conn->send(response.dump());
+            return response;
+        }
+
+        string redisCode=RedisManager::instance().getVerifyCode(email);
+
+        if(redisCode!=code){
+            LOG_ERROR<<"验证码错误";
+
+            response["msgid"]=LOGIN_ACK;
+            response["errno"]=1;
+            response["message"]="verify code error";
+
+            conn->send(response.dump());
+            return response;
+        }
+
+
+
+        username=model.queryUsernameByEmail(email);
+        flag=!username.empty();
+    }else{
+        string passwordHash=HashSHA256::encode(password);
+        flag=model.queryUser(username,passwordHash);
+    }
     if(flag){
         LOG_INFO<<"用户登录成功，用户名:"<<username;
         response["msgid"]=LOGIN_ACK;
         response["errno"]=0;
         response["message"]="login success";
+        response["username"]=username;
         conn->setUsername(username);
         conn->send(response.dump());
         OnlineUserManager::instance().addUser(username,conn);

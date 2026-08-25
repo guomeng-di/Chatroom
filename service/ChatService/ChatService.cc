@@ -8,6 +8,7 @@
 #include "../../protocol/MsgId.h"
 #include <iostream>
 #include "../../netlib/base/Logger/Logger.h"
+#include <thread>
 
 using namespace std;
 ChatService::ChatService(){}
@@ -63,19 +64,35 @@ if(!friendModel.isFriend(from,to)){
         sendMsg["from"]=from;
         sendMsg["message"]=msg;
         sendMsg["to"]=to;
-        //先存入mysql
-        PrivateMessageModel model;
-        if(!model.saveMessage(from,to,msg)){
-            LOG_ERROR<<"保存私聊消息失败 from="<<from<<" to="<<to;
-        }
-        else{
-            LOG_INFO<<"保存私聊消息成功 from="<<from<<" to="<<to;
+        TcpConnection* target=OnlineUserManager::instance().getConnection(to);
+        if(target){
+            target->send(sendMsg.dump());
         }
 
-        TcpConnection* target=OnlineUserManager::instance().getConnection(to);
+        //在线消息先完成网络转发，历史记录异步保存，避免阻塞事件循环
+        if(target){
+            thread([from,to,msg](){
+                PrivateMessageModel model;
+                if(!model.saveMessage(from,to,msg)){
+                    LOG_ERROR<<"保存私聊消息失败 from="<<from<<" to="<<to;
+                }
+                else{
+                    LOG_INFO<<"保存私聊消息成功 from="<<from<<" to="<<to;
+                }
+            }).detach();
+        }else{
+            //离线消息保持原有同步保存逻辑
+            PrivateMessageModel model;
+            if(!model.saveMessage(from,to,msg)){
+                LOG_ERROR<<"保存私聊消息失败 from="<<from<<" to="<<to;
+            }
+            else{
+                LOG_INFO<<"保存私聊消息成功 from="<<from<<" to="<<to;
+            }
+        }
+
     //4调用 TcpConnection::send() 转发
     if(target){
-        target->send(sendMsg.dump());
         LOG_INFO<<"发送在线私聊消息 from="<<from<<" to="<<to;
         response["msgid"]=CHAT_ACK;
         response["errno"]=0;

@@ -13,16 +13,41 @@
 #include <sys/select.h>
 #include <unistd.h>
 #include <cerrno>
+#include <condition_variable>
+#include <mutex>
+#include <chrono>
 
 using namespace std;
 using json=nlohmann::json;
 
-bool AccountMenu::sendVerifyCode(int fd,const string& email){
+namespace{
+mutex verifyMutex;
+condition_variable verifyCondition;
+int verifyResult=-1;
+}
+
+void AccountMenu::setVerifyCodeResult(bool success){
+    {
+        lock_guard<mutex> lock(verifyMutex);
+        verifyResult=success?1:0;
+    }
+    verifyCondition.notify_all();
+}
+
+bool AccountMenu::sendVerifyCode(int fd,const string& email,const string& username){
     json js;
     js["msgid"]=SEND_VERIFY_CODE_MSG;
     js["email"]=email;
+    js["username"]=username;
     string data=MessageCodec::encode(js.dump());
-    return SocketUtil::sendAll(fd,data);
+    {
+        lock_guard<mutex> lock(verifyMutex);
+        verifyResult=-1;
+    }
+    if(!SocketUtil::sendAll(fd,data)) return false;
+    unique_lock<mutex> lock(verifyMutex);
+    if(!verifyCondition.wait_for(lock,chrono::seconds(5),[](){return verifyResult!=-1;})) return false;
+    return verifyResult==1;
 }
 
 void AccountMenu::run(int fd,const string& username){
@@ -109,8 +134,8 @@ void AccountMenu::run(int fd,const string& username){
             cout<<"邮箱:";
             cin>>email;
 
-            if(!sendVerifyCode(fd,email)){
-                cout<<"验证码发送失败"<<endl;
+            if(!sendVerifyCode(fd,email,username)){
+                cout<<"邮箱输入错误，返回账号菜单"<<endl;
                 continue;
             }
 
@@ -123,6 +148,7 @@ void AccountMenu::run(int fd,const string& username){
             json js;
             js["msgid"]=RESET_PASSWORD_MSG;
             js["email"]=email;
+            js["username"]=username;
             js["code"]=code;
             js["password"]=password;
 

@@ -17,7 +17,7 @@
 #include "../../model/FileModel/FileModel.h"
 using json=nlohmann::json;
 using namespace std;
-#define FILE_BLOCK_SIZE 4096
+#define FILE_BLOCK_SIZE (1024*1024)
 namespace {
 string makeSendKey(const string& targetType,const string& target,const string& filename){
     return targetType + "_" + target + "_" + filename;
@@ -28,7 +28,9 @@ void FileClient::sendFile(int fd,int fileid,const string& filepath,const string&
     // File transfer is deliberately detached from the receive/menu threads.
     // The caller returns immediately, so the user can continue chatting while
     // this worker reads and sends file packets in the background.
-    thread([=](){
+    string sender=username_;
+    
+    thread([fd,fileid,filepath,filename,target,targetType,groupname,offset,sender](){
       try{
         int filefd =open(filepath.c_str(),O_RDONLY);
         if(filefd < 0){
@@ -52,7 +54,7 @@ void FileClient::sendFile(int fd,int fileid,const string& filepath,const string&
         }
 
         if(offset> 0){
-            cout<<"resume send offset="<<offset<<endl;
+            //cout<<"resume send offset="<<offset<<endl;
 
             if(lseek(filefd,offset,SEEK_SET) < 0){
                 cout<<"seek file failed:"<<filepath<<endl;
@@ -61,11 +63,11 @@ void FileClient::sendFile(int fd,int fileid,const string& filepath,const string&
             }
         }
 
-        char buffer[4096];
+        vector<char> buffer(FILE_BLOCK_SIZE);
         long long current=offset;
         bool completed=true;
         while(current<filesize){
-            int n =read(filefd,buffer,sizeof(buffer));
+            int n =read(filefd,buffer.data(),sizeof(buffer));
             if(n<=0){
                 completed=false;
                 break;
@@ -74,7 +76,7 @@ void FileClient::sendFile(int fd,int fileid,const string& filepath,const string&
             js["msgid"]=FILE_DATA_MSG;
             js["fileid"]=fileid;
             js["filename"]=filename;
-            js["fromname"] =username_;
+            js["fromname"] =sender;
             js["filesize"]=filesize;
             js["offset"] =current;
             js["size"]=n;
@@ -84,14 +86,13 @@ void FileClient::sendFile(int fd,int fileid,const string& filepath,const string&
                 js["receiver"]=target;
                 js["groupname"] =groupname;
             }
-            string data(buffer,n);
+            string data(buffer.data(),n);
             string packet =MessageCodec::encodeBinary(FILE_DATA_MSG,js,data);
             if(!SocketUtil::sendAll(fd,packet)){
                 cout<<"send file failed"<<endl;
                 close(filefd);
                 return;
             }
-            cout<<"send offset="<<current<<" size="<<n<<endl;
             current+= n;
         }
         close(filefd);
@@ -105,7 +106,7 @@ void FileClient::sendFile(int fd,int fileid,const string& filepath,const string&
         finish["msgid"] =FILE_FINISH_MSG;
         finish["fileid"]=fileid;
         finish["filename"] =filename;
-        finish["fromname"]=username_;
+        finish["fromname"]=sender;
         finish["filesize"]=filesize;
         finish["targetType"]=targetType;
         if(targetType=="user")finish["toname"]=target;

@@ -8,6 +8,7 @@
 #include "../../manager/FileManager/FileManager.h"
 #include <iostream>
 #include "../menu/Color.h"
+#include "../menu/AccountMenu/AccountMenu.h"
 #include <thread>
 using namespace std;
 void ClientMessageHandler::handle(const json& js,int fd){
@@ -31,12 +32,12 @@ void ClientMessageHandler::handle(const json& js,int fd){
         }
 
         //群聊消息
-else if(msgid==CHAT_NOTIFY){
+else if(msgid==GROUP_CHAT_NOTIFY){
     string from=(string)js["from"];
     string message=(string)js["message"];
 
     cout<<COLOR_BLUE<<from<<COLOR_RESET<<": "<<message<<endl;
-}else if(msgid==CHAT_ACK){
+}else if(msgid==GROUP_CHAT_ACK){
     if(js["errno"]==0) return;
     cout<<COLOR_RED<<"群聊失败: "<<js["message"]<<COLOR_RESET<<endl;
 }
@@ -278,7 +279,7 @@ else if(msgid==DELETE_FRIEND_ACK){
 
                 //客户端先发,再出现"我:"
                 cout<<COLOR_GREEN;
-                cout<<"我: ";
+                //cout<<"我: ";
                 cout<<COLOR_RESET;
 
             }catch(exception& e){
@@ -624,7 +625,8 @@ else if(msgid==LOGOUT_ACK){
 }
 //发送验证码响应
 else if(msgid==SEND_VERIFY_CODE_ACK){
-    if(js["errno"]==0){
+      AccountMenu::setVerifyCodeResult(js.value("errno",1)==0);
+      if(js["errno"]==0){
         cout<<COLOR_GREEN;
         cout<<"验证码发送成功"<<endl;
         cout<<COLOR_RESET;

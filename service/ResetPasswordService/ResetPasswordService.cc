@@ -19,6 +19,7 @@ json ResetPasswordService::resetPassword(const json& js){
     string email=js["email"];
     string code=js["code"];
     string password=js["password"];
+    string requestUsername=js.value("username","");
 LOG_INFO<<"重置密码邮箱="<<email;
 
 LOG_INFO<<"重置密码验证码="<<code;
@@ -51,6 +52,11 @@ LOG_INFO<<"重置密码验证码="<<code;
         LOG_ERROR<<"用户名不存在";
         res["errno"]=1;
         res["message"]="username not exist";
+        return res;
+    }
+    if(!requestUsername.empty() && username!=requestUsername){
+        res["errno"]=1;
+        res["message"]="email does not belong to current user";
         return res;
     }
     if(!model.updatePasswordByEmail(email,passwordHash)){

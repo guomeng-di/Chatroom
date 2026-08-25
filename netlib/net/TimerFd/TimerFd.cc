@@ -11,8 +11,8 @@ TimerFd::TimerFd(EventLoop* loop):timerfd_(-1),loop_(loop),channel_(nullptr){
         return;
     }
     itimerspec timer{};
-    timer.it_value.tv_sec=1;
-    timer.it_interval.tv_sec=1;
+    timer.it_value.tv_sec=15;
+    timer.it_interval.tv_sec=15;
     if(timerfd_settime(timerfd_,0,&timer,nullptr)<0){
         // Logger::instance().error("timerfd settime failed");
         close(timerfd_);

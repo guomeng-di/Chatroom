@@ -3,6 +3,7 @@
 #include "../../protocol/MsgId.h"
 #include <filesystem>
 #include <iostream>
+#include <thread>
 #include "../../src/config.h"
 #include "../../model/GroupModel/GroupModel.h"
 #include <arpa/inet.h>
@@ -449,6 +450,19 @@ void FileService::receiveFileData(const FilePacket& packet,TcpConnection* conn){
     string data =MessageCodec::encodeBinary(packet.msgid,packet.info,packet.data);
 
     if(target->sendBinary(data)){
+        long long asyncOffset =js["offset"];
+        long long asyncSize =asyncOffset + packet.data.size();
+        thread([fileid,receiver,asyncSize](){
+            FileModel model;
+            long long old =model.getReceivedSize(fileid,receiver);
+            long long nextSize = asyncSize > old ? asyncSize : old;
+            if(nextSize>old){
+                model.updateReceivedSize(fileid,receiver,nextSize);
+                //LOG_INFO << "update file receive progress,fileid=" << fileid<< ",receiver=" << receiver<< ",size=" << nextSize;
+            }
+        }).detach();
+        return;
+#if 0
         FileModel model;
 
         long long offset =js["offset"];
@@ -461,6 +475,7 @@ void FileService::receiveFileData(const FilePacket& packet,TcpConnection* conn){
 
             LOG_INFO << "更新文件接收进度,fileid=" << fileid<< ",接收者=" << receiver<< ",当前大小=" << nextSize;
         }
+ #endif
     }else{
         LOG_ERROR << "发送文件数据失败,fileid=" << fileid<< ",接收者=" << receiver;
     }

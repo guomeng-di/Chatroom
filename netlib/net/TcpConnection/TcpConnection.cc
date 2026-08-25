@@ -37,55 +37,116 @@ TcpConnection::~TcpConnection(){
     if(fd_!=-1) close(fd_);
 }
 void TcpConnection::handleRead(){
+
     LOG_INFO<<"开始读取客户端数据 fd="<<fd_;
-    char buf[1024*4];
+
+    char buf[1024*1024];
+
     while(1){
+
         int n=recv(fd_,buf,sizeof(buf),0);
+
         if(n>0){
+
             updateActiveTime();
-            LOG_INFO<<"收到客户端数据 fd="<<fd_<<" bytes="<<n;
+
+            //LOG_INFO<<"收到客户端数据 fd="<<fd_<<" bytes="<<n;
+
             buffer_.append(buf,n);
+
             while(buffer_.hasMessage()){
+
                 string msg=buffer_.retrieveMessage();
+
                 int msgid=MessageCodec::getMsgId(msg);
-                LOG_INFO<<"解析消息 fd="<<fd_<<" username="<<username_<<" msgid="<<msgid<<" size="<<msg.size();
-                try{
-                    if(msgid==FILE_DATA_MSG){
-                        LOG_INFO<<"收到文件数据包 fd="<<fd_;
-                        FilePacket packet=MessageCodec::decodeBinary(msg);
-                        FileService::receiveFileData(packet,this);
-                    }else{
-                        json js=JsonProtocol::decode(msg);
-                        LOG_INFO<<"消息JSON解析成功 fd="<<fd_<<" msgid="<<msgid;
-                        MessageDispatcher::dispatch(js,this);
-                    }
-                }catch(const exception& e){
-                    LOG_ERROR<<"消息处理异常 fd="<<fd_<<" msgid="<<msgid<<" error="<<e.what();
-                    handleClose();
-                    return;
+
+                if(msgid!=FILE_DATA_MSG){
+
+                    // LOG_INFO<<"解析消息 fd="<<fd_
+                    //         <<" username="<<username_
+                    //         <<" msgid="<<msgid
+                    //         <<" size="<<msg.size();
+
                 }
+
+                try{
+
+                    if(msgid==FILE_DATA_MSG){
+
+                        FilePacket packet=MessageCodec::decodeBinary(msg);
+
+                        FileService::receiveFileData(packet,this);
+
+                    }else{
+
+                        json js=JsonProtocol::decode(msg);
+
+                        LOG_INFO<<"消息JSON解析成功 fd="<<fd_
+                                <<" msgid="<<msgid;
+
+                        MessageDispatcher::dispatch(js,this);
+
+                    }
+
+                }catch(const exception& e){
+
+                    LOG_ERROR<<"消息处理异常 fd="<<fd_
+                             <<" msgid="<<msgid
+                             <<" error="<<e.what();
+
+                    handleClose();
+
+                    return;
+
+                }
+
             }
+
             if(buffer_.hasError()){
+
                 LOG_ERROR<<"Buffer解析异常 fd="<<fd_;
+
                 handleClose();
+
                 return;
+
             }
+
         }else if(n==0){
-            LOG_WARN<<"客户端关闭连接 fd="<<fd_<<" username="<<username_;
+
+            LOG_WARN<<"客户端关闭连接 fd="<<fd_
+                    <<" username="<<username_;
+
             handleClose();
+
             return;
+
         }else{
+
             if(errno==EAGAIN || errno==EWOULDBLOCK){
+
                 break;
+
             }
+
             if(errno==EINTR){
+
                 continue;
+
             }
-            LOG_ERROR<<"recv读取失败 fd="<<fd_<<" errno="<<errno<<" error="<<strerror(errno);
+
+            LOG_ERROR<<"recv读取失败 fd="<<fd_
+                     <<" errno="<<errno
+                     <<" error="<<strerror(errno);
+
             handleClose();
+
             return;
+
         }
+
     }
+
 }
 void TcpConnection::send(const string& msg){
     LOG_INFO<<"准备发送普通消息 fd="<<fd_<<" size="<<msg.size();
@@ -95,6 +156,7 @@ void TcpConnection::send(const string& msg){
             outputBuffer_.append(data.data(),data.size());
             LOG_INFO<<"消息加入发送缓冲区 fd="<<fd_<<" size="<<data.size();
             channel_->enableWriting();
+            handleWrite();
         }
     );
 }
@@ -106,6 +168,7 @@ bool TcpConnection::sendBinary(const string& msg){
             outputBuffer_.append(msg.data(),msg.size());
             LOG_INFO<<"二进制数据加入发送缓冲区 fd="<<fd_<<" size="<<msg.size();
             channel_->enableWriting();
+            handleWrite();
         }
     );
     return true;
@@ -162,27 +225,41 @@ int TcpConnection::fd(){
     return fd_;
 }
 void TcpConnection::handleWrite(){
-    if(outputBuffer_.size()==0){
-        LOG_INFO<<"发送缓冲区为空 fd="<<fd_;
-    }
-    int n=::send(fd_,outputBuffer_.peek(),outputBuffer_.size(),0);
-    if(n>0){
-        outputBuffer_.retrieve(n);
-        LOG_INFO<<"发送数据成功 fd="<<fd_<<" bytes="<<n;
 
-        if(outputBuffer_.size()==0){
-            //发送完成关闭写事件
-            LOG_INFO<<"数据发送完成,关闭写事件 fd="<<fd_;
-            channel_->disableWriting();
+    while(outputBuffer_.size()>0){
+
+        ssize_t n = ::send(
+            fd_,
+            outputBuffer_.peek(),
+            outputBuffer_.size(),
+            MSG_NOSIGNAL
+        );
+
+        if(n>0){
+
+            outputBuffer_.retrieve(n);
+
+        }else{
+
+            if(errno==EAGAIN || errno==EWOULDBLOCK){
+                break;
+            }
+
+            if(errno==EINTR){
+                continue;
+            }
+
+            LOG_ERROR<<"send error "
+                     <<strerror(errno);
+
+            handleClose();
+            return;
         }
-    }else{
-    if(errno==EAGAIN||errno==EWOULDBLOCK){
-        LOG_WARN<<"socket发送缓冲区满,等待下次发送 fd="<<fd_;
-        return;
     }
 
-    LOG_ERROR<<"发送数据失败 fd="<<fd_<<" errno="<<errno<<" error="<<strerror(errno);
 
-    handleClose();
-}
+    if(outputBuffer_.size()==0){
+        channel_->disableWriting();
+    }
+
 }

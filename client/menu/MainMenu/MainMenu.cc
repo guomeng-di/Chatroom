@@ -39,13 +39,15 @@ bool sendAllData(int fd,const string& data){
     return SocketUtil::sendAll(fd,data);
 }
 
+bool sendVerifyCode(int fd,const string& email);
+
 bool getNextMessage(int fd,string& msg){
     while(true){
         if(clientBuffer.hasMessage()){
             msg=clientBuffer.retrieveMessage();
             return true;
         }
-        char buf[1024*4];
+        char buf[1024*1024];
         ssize_t len=recv(fd,buf,sizeof(buf),0);
         if(len>0){
             clientBuffer.append(buf,static_cast<size_t>(len));
@@ -88,7 +90,7 @@ bool waitForJsonResponse(int fd,int expectedMsgId,json& response){
 }
 
 void recvMessage(int fd){
-    char buf[1024*4];
+    char buf[1024*1024];
     int timerFd=Heartbeat::getTimerFd();
     while(true){
         fd_set readfds;
@@ -183,6 +185,11 @@ string getPassword(){
 bool login(int fd){
     cout<<"登录:"<<endl;
     cout<<"username:"; cin>>username;
+    //大写->小写
+    transform(username.begin(),username.end(),username.begin(),
+    [](unsigned char c){
+        return tolower(c);
+    });
     string password;
     cout<<"password:"; password=getPassword();
     json loginMsg;
@@ -214,34 +221,83 @@ bool login(int fd){
     return false;
 }
 
+bool loginByVerifyCode(int fd){
+    cout<<"登录（验证码）"<<endl;
+    //cout<<"用户名:"<<endl;
+    //string username;
+    //cin>>username;
+    cout<<"邮箱:";
+
+    //cin.ignore(numeric_limits<streamsize>::max(),'\n');
+
+    string email;
+    cin>>email;
+    if(!sendVerifyCode(fd,email)){
+        cout<<"验证码发送失败"<<endl;
+        return false;
+    }
+    cout<<"验证码:";
+    string code;
+    cin>>code;
+    json loginMsg;
+    loginMsg["msgid"]=LOGIN_MSG;
+    loginMsg["loginType"]="code";
+    loginMsg["email"]=email;
+    loginMsg["code"]=code;
+    loginMsg["username"]=username;
+    string data=MessageCodec::encode(loginMsg.dump());
+    if(!sendAllData(fd,data)){
+        cout<<"登录消息发送失败"<<endl;
+        return false;
+    }
+    json response;
+    if(!waitForJsonResponse(fd,LOGIN_ACK,response)){
+        cout<<"服务器已断开连接"<<endl;
+        return false;
+    }
+    if(response.value("errno",1)==0){
+        username=response.value("username","");
+        if(username.empty()){
+            username=response.value("user","");
+        }
+        FileClient::instance().setUsername(username);
+        cout<<"登录成功"<<endl;
+        return true;
+    }
+    cout<<"登录失败";
+    if(response.contains("message")) cout<<": "<<response["message"];
+    cout<<endl;
+    return false;
+}
+
 bool sendVerifyCode(int fd,const string& email){
     json js;
     js["msgid"]=SEND_VERIFY_CODE_MSG;
     js["email"]=email;
     string data=MessageCodec::encode(js.dump());
     if(!sendAllData(fd,data)){
-        cout<<"send verify code request failed"<<endl;
+        cout<<"验证码请求发送失败"<<endl;
         return false;
     }
     json response;
     if(!waitForJsonResponse(fd,SEND_VERIFY_CODE_ACK,response)){
-        cout<<"server close"<<endl;
+        cout<<"服务器已断开连接"<<endl;
         return false;
     }
     if(!response.contains("msgid")){
-        cout<<"invalid verify code response: no msgid"<<endl;
+        cout<<"验证码响应无效：缺少消息编号"<<endl;
         return false;
     }
     int receivedMsgId=response["msgid"];
     if(receivedMsgId!=SEND_VERIFY_CODE_ACK){
-        cout<<"invalid verify code response"<<endl;
+        cout<<"验证码响应无效"<<endl;
         return false;
     }
     if(response.contains("errno")&&response["errno"]==0){
-        cout<<"send verify code success"<<endl;
+        cout<<"验证码发送成功"<<endl;
         return true;
     }
-    cout<<"send verify code failed";
+    cout<<"验证码发送失败";
     if(response.contains("message")) cout<<": "<<response["message"];
     cout<<endl;
     return false;
@@ -320,15 +376,17 @@ void MainMenu::run(int fd){
     while(true){
         cout<<COLOR_GREEN;
         cout<<R"(
-+--------------------------------+
-|                                |
-|             聊天室              |
-+--------------------------------+
-|        1. 登录(密码)             |
-|        2. 注册                  |
-|        3. 重置密码               |
-|        0. 退出                  |
-+--------------------------------+
++------------------------------------+
+|                                    |
+|             聊天室登录             |
+|                                    |
++------------------------------------+
+|        1. 登录（密码）             |
+|        2. 登录（验证码）           |
+|        3. 注册                     |
+|        4. 重置密码                 |
+|        0. 退出登录                 |
++------------------------------------+
 )";
         cout<<COLOR_RESET;
         int choice;
@@ -341,10 +399,12 @@ void MainMenu::run(int fd){
         if(choice==1){
             if(login(fd)) break;
         }else if(choice==2){
+            if(loginByVerifyCode(fd)) break;
+        }else if(choice==3){
             if(registerUser(fd)){
                 if(login(fd)) break;
             }
-        }else if(choice==3){
+        }else if(choice==4){
             ResetPassword(fd);
         }else if(choice==0){
             cout<<COLOR_RED;

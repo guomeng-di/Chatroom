@@ -7,6 +7,7 @@
 #include <iostream>
 #include "../../protocol/MsgId.h"
 #include "../../netlib/base/Logger/Logger.h"
+#include <thread>
 using namespace std;
 GroupChatService::GroupChatService(){}
 GroupChatService::~GroupChatService(){}
@@ -37,11 +38,13 @@ json GroupChatService::groupChat(const json& js,TcpConnection* conn){
         response["errno"]=1,response["message"]="not group member";
         return response;
     }
-    GroupMessageModel messageModel;
-    if(!messageModel.saveMessage(groupName,username,message)){
-        LOG_ERROR<<"保存群聊历史消息失败";
-    }
     unordered_set<string> members=groupModel.getMembers(groupName);
+    if(members.empty()){
+        LOG_ERROR<<"获取群成员失败，无法发送群聊消息";
+        response["errno"]=1;
+        response["message"]="get group members fail";
+        return response;
+    }
     json sendMsg;
     sendMsg["msgid"]=GROUP_CHAT_NOTIFY;
     sendMsg["groupname"]=groupName;
@@ -49,6 +52,7 @@ json GroupChatService::groupChat(const json& js,TcpConnection* conn){
     sendMsg["message"]=message;
     string data=sendMsg.dump();
     int sendCount=0,offlineCount=0;
+    unordered_set<string> offlineMembers;
     for(auto& member:members){
         if(member==username){
             continue;
@@ -58,8 +62,19 @@ json GroupChatService::groupChat(const json& js,TcpConnection* conn){
             target->send(data);
             sendCount++;
         }else{
-            if(RedisManager::instance().connect()){
-                RedisManager::instance().saveGroupOfflineMessage(member,data);
+            offlineMembers.insert(member);
+        }
+    }
+    //群聊通知先完成网络发送，历史记录异步保存，避免阻塞事件循环
+    thread([groupName,username,message](){
+        GroupMessageModel messageModel;
+        if(!messageModel.saveMessage(groupName,username,message)){
+            LOG_ERROR<<"保存群聊历史消息失败";
+        }
+    }).detach();
+    if(!offlineMembers.empty()&&RedisManager::instance().connect()){
+        for(auto& member:offlineMembers){
+            if(RedisManager::instance().saveGroupOfflineMessage(member,data)){
                 offlineCount++;
             }
         }

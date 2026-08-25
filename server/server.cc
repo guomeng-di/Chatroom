@@ -19,10 +19,10 @@ int main(int argc, char* argv[]){
         LOG_INFO<<"使用命令行参数进行配置";
     }else{
         //不传参数，就让用户输入
-        cout << "server ip: ";
-        cin >> ip;
-        cout << "server port: ";
-        cin >> port;
+        // cout << "server ip: ";
+        // cin >> ip;
+        // cout << "server port: ";
+        // cin >> port;
     }
     LOG_INFO << "服务器配置 IP=" <<ip<< " 端口=" <<port;
     EventLoop loop;

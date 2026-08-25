@@ -4,6 +4,7 @@
 #include "../../utils/VerifyCode/VerifyCode.h"
 #include "../../protocol/MsgId.h"
 #include "../../netlib/net/TcpConnection/TcpConnection.h"
+#include "../../model/UserModel/UserModel.h"
 
 #include "../../netlib/base/Logger/Logger.h"
 using namespace std;
@@ -17,6 +18,15 @@ json VerifyCodeService::sendCode(const json& js){
         return res;
     }
     string email=js["email"];
+    if(js.contains("username")){
+        string username=js["username"];
+        UserModel model;
+        if(model.queryUsernameByEmail(email)!=username){
+            res["errno"]=1;
+            res["message"]="email does not belong to current user";
+            return res;
+        }
+    }
     //生成验证码
     string code=VerifyCode::generate();
     LOG_INFO<<"生成验证码:"<<code;

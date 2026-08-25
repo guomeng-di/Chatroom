@@ -30,7 +30,7 @@ bool MySQLManager::connect(){
         LOG_ERROR<<mysql_error(mysql_);
         return false;
     }
-    LOG_INFO<<"MySQL连接成功";
+    //LOG_INFO<<"MySQL连接成功";
     return true;
 }
 //执行SQL语句
