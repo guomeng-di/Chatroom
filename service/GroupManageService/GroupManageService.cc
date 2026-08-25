@@ -1,5 +1,7 @@
 #include "GroupManageService.h"
 #include "../../model/GroupModel/GroupModel.h"
+#include "../../model/UserModel/UserModel.h"
+#include "../../model/FriendModel/FriendModel.h"
 #include "../../netlib/net/TcpConnection/TcpConnection.h"
 #include "../../manager/OnlineUserManager/OnlineUserManager.h"
 #include "../../manager/RedisManager/RedisManager.h"
@@ -276,14 +278,30 @@ json GroupManageService::inviteGroup(const json& js){
         res["message"]="permission denied";
         return res;
     }
-    //3. 被邀请的人是否已经在群
+    //3. 被邀请的用户是否存在
+    UserModel userModel;
+    if(!userModel.queryUserByUsername(username)){
+        LOG_ERROR<<"邀请加入群失败，被邀请用户不存在:"<<username;
+        res["errno"]=1;
+        res["message"]="user not exist";
+        return res;
+    }
+    //4. 操作者与被邀请用户必须是好友
+    FriendModel friendModel;
+    if(!friendModel.isFriend(operatorName,username)){
+        LOG_ERROR<<"邀请加入群失败，操作者与被邀请用户不是好友:"<<operatorName<<" "<<username;
+        res["errno"]=1;
+        res["message"]="not friend";
+        return res;
+    }
+    //5. 被邀请的人是否已经在群
     if(model.isMember(groupname,username)){
         LOG_ERROR<<"邀请加入群失败，用户已经在群内:"<<username;
         res["errno"]=1;
         res["message"]="already group member";
         return res;
     }
-    //4. 加入群
+    //6. 加入群
     if(!model.addMember(groupname,username)){
         LOG_ERROR<<"邀请加入群失败:"<<username;
         res["errno"]=1;
@@ -292,5 +310,7 @@ json GroupManageService::inviteGroup(const json& js){
     }
 
     LOG_INFO<<"邀请用户加入群成功，邀请人:"<<operatorName<<" 被邀请人:"<<username<<" 群:"<<groupname;
+    res["errno"]=0;
+    res["message"]="invite success";
     return res;
 }

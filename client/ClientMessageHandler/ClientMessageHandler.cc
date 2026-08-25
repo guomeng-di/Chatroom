@@ -450,10 +450,10 @@ else if(msgid==GROUP_MEMBER_ACK){
 }
 //邀请进群响应
 else if(msgid==INVITE_GROUP_ACK){
-    if(js["errno"]==0){
-        cout<< COLOR_GREEN<< js["message"]<< COLOR_RESET<< endl;
+    if(js.value("errno",1)==0){
+        cout<< COLOR_GREEN<< js.value("message","invite success")<< COLOR_RESET<< endl;
     }else{
-        cout<< COLOR_RED<< js["message"]<< COLOR_RESET<< endl;
+        cout<< COLOR_RED<< js.value("message","invite failed")<< COLOR_RESET<< endl;
     }
 }
 

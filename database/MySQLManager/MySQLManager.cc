@@ -2,15 +2,27 @@
 #include "../../netlib/base/Logger/Logger.h"
 #include <iostream>
 using namespace std;
+namespace {
+thread_local MYSQL* threadConnection=nullptr;
+}
 MySQLManager::MySQLManager(){
     mysql_=NULL;
 }
 MySQLManager::~MySQLManager(){
-    if(mysql_){
-        mysql_close(mysql_);
-    }
+    mysql_=nullptr;
 }
 bool MySQLManager::connect(){
+    if(mysql_!=nullptr) return true;
+
+    if(threadConnection!=nullptr){
+        if(mysql_ping(threadConnection)==0){
+            mysql_=threadConnection;
+            return true;
+        }
+        mysql_close(threadConnection);
+        threadConnection=nullptr;
+    }
+
     mysql_=mysql_init(nullptr);//初始化失败返回NULL
     if(mysql_==nullptr){
         LOG_ERROR<<"MySQL初始化失败";
@@ -28,8 +40,11 @@ bool MySQLManager::connect(){
     );
     if(ret==nullptr){
         LOG_ERROR<<mysql_error(mysql_);
+        mysql_close(mysql_);
+        mysql_=nullptr;
         return false;
     }
+    threadConnection=mysql_;
     //LOG_INFO<<"MySQL连接成功";
     return true;
 }

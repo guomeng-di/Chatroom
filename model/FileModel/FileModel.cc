@@ -254,7 +254,7 @@ bool FileModel::updateReceivedSize(int fileid,const string& receiver,long long s
         return false;
     }
 
-    string sql ="update file_receiver ""set received_size="+to_string(size)+" where fileid="+to_string(fileid)+" and receiver='"+receiver+"'";
+    string sql ="update file_receiver set received_size=greatest(received_size,"+to_string(size)+") where fileid="+to_string(fileid)+" and receiver='"+receiver+"'";
 
     return mysql.execute(sql);
 }

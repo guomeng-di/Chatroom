@@ -22,6 +22,7 @@ class MessageCodec{
       static std::string decode(const std::string& data);
       //二进制消息
       static std::string encodeBinary(int msgid,const json& js,const std::string& data);
+      static std::string encodeBinary(int msgid,const json& js,const char* data,size_t size);
       static FilePacket decodeBinary(const std::string& msg);
       //static bool decodeHeader(const std::string& data,int& msgid,int& bodyLen);
       static int getMsgId(const std::string& data);

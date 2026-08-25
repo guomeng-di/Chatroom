@@ -13,6 +13,7 @@
 #include <termios.h>
 #include <iconv.h>
 #include <cerrno>
+#include <deque>
 
 using namespace std;
 using json=nlohmann::json;
@@ -27,8 +28,12 @@ public:
             current.c_cc[VTIME]=0;
             if(tcsetattr(STDIN_FILENO,TCSANOW,&current)==0) active_=true;
         }
+        const char* enablePaste="\033[?2004h";
+        write(STDOUT_FILENO,enablePaste,8);
     }
     ~ChatInputMode(){
+        const char* disablePaste="\033[?2004l";
+        write(STDOUT_FILENO,disablePaste,8);
         if(active_) tcsetattr(STDIN_FILENO,TCSANOW,&old_);
     }
 private:
@@ -36,18 +41,121 @@ private:
     bool active_;
 };
 
-bool readChatLine(string& pending,string& message){
-    size_t pos=pending.find('\n');
-    if(pos!=string::npos){
-        message=pending.substr(0,pos);
-        pending.erase(0,pos+1);
-        if(!message.empty()&&message.back()=='\r') message.pop_back();
+class ChatInputReader{
+public:
+    explicit ChatInputReader(bool splitMode):splitMode_(splitMode),inPaste_(false),pendingCr_(false){}
+
+    bool hasMessage() const{
+        return !messages_.empty();
+    }
+
+    void setSplitMode(bool splitMode){
+        splitMode_=splitMode;
+    }
+
+    bool isSplitMode() const{
+        return splitMode_;
+    }
+
+    bool readMessage(string& message){
+        if(messages_.empty()){
+            char buf[4096];
+            ssize_t len=read(STDIN_FILENO,buf,sizeof(buf));
+            if(len<=0) return false;
+            pending_.append(buf,static_cast<size_t>(len));
+            parse();
+        }
+        if(messages_.empty()) return false;
+        message=std::move(messages_.front());
+        messages_.pop_front();
         return true;
     }
-    char buf[4096];
-    ssize_t len=read(STDIN_FILENO,buf,sizeof(buf));
-    if(len<=0) return false;
-    pending.append(buf,static_cast<size_t>(len));
+
+private:
+    void finishLine(){
+        messages_.push_back(std::move(current_));
+        current_.clear();
+    }
+
+    void appendNewline(){
+        if(inPaste_&&!splitMode_) current_.push_back('\n');
+        else finishLine();
+    }
+
+    void appendCharacter(char ch){
+        if(ch=='\r'){
+            appendNewline();
+            pendingCr_=true;
+        }else if(ch=='\n'){
+            if(pendingCr_){
+                pendingCr_=false;
+                return;
+            }
+            appendNewline();
+        }else{
+            pendingCr_=false;
+            current_.push_back(ch);
+        }
+    }
+
+    bool markerReady(const string& marker) const{
+        return pending_.size()>=marker.size()&&pending_.compare(0,marker.size(),marker)==0;
+    }
+
+    bool markerIncomplete(const string& marker) const{
+        return pending_.size()<marker.size()&&marker.compare(0,pending_.size(),pending_)==0;
+    }
+
+    void parse(){
+        const string pasteBegin="\033[200~";
+        const string pasteEnd="\033[201~";
+        while(!pending_.empty()){
+            const string& marker=inPaste_?pasteEnd:pasteBegin;
+            if(markerReady(marker)){
+                pendingCr_=false;
+                pending_.erase(0,marker.size());
+                if(inPaste_){
+                    inPaste_=false;
+                    if(splitMode_&&!current_.empty()) finishLine();
+                }else{
+                    inPaste_=true;
+                }
+                continue;
+            }
+            if(markerIncomplete(marker)) return;
+            char ch=pending_.front();
+            pending_.erase(0,1);
+            appendCharacter(ch);
+        }
+    }
+
+    bool splitMode_;
+    bool inPaste_;
+    bool pendingCr_;
+    string pending_;
+    string current_;
+    deque<string> messages_;
+};
+
+bool handleModeCommand(const string& message,ChatInputReader& inputReader){
+    if(message=="/mode 1"){
+        inputReader.setSplitMode(false);
+        cout<<COLOR_GREEN<<"已切换为整体发送，粘贴文本中的换行和空行会保留"<<COLOR_RESET<<endl;
+        return true;
+    }
+    if(message=="/mode 2"){
+        inputReader.setSplitMode(true);
+        cout<<COLOR_GREEN<<"已切换为分行发送，粘贴文本会按换行拆成多条消息"<<COLOR_RESET<<endl;
+        return true;
+    }
+    if(message=="/mode"){
+        cout<<COLOR_YELLOW;
+        cout<<"当前发送方式:"<<(inputReader.isSplitMode()?"分行发送":"整体发送")<<endl;
+        cout<<"输入 /mode 1 切换为整体发送"<<endl;
+        cout<<"输入 /mode 2 切换为分行发送"<<endl;
+        cout<<COLOR_RESET;
+        return true;
+    }
     return false;
 }
 
@@ -88,8 +196,10 @@ void ChatController::privateChat(int fd,const string& username){
 |            私聊模式             |
 |                                |
 +--------------------------------+
-)";
+    )";
     cout<<"当前好友:"<<friendName<<endl;
+    cout<<"发送方式:整体发送"<<endl;
+    cout<<"输入 /mode 查看或切换发送方式"<<endl;
     cout<<"输入 quit 返回"<<endl;
     cout<<COLOR_RESET;
     cout<<COLOR_GREEN;
@@ -97,7 +207,7 @@ void ChatController::privateChat(int fd,const string& username){
     cout<<COLOR_RESET;
 
     ChatInputMode inputMode;
-    string pendingInput;
+    ChatInputReader inputReader(false);
     while(true){
         fd_set readfds;
         FD_ZERO(&readfds);
@@ -109,7 +219,7 @@ void ChatController::privateChat(int fd,const string& username){
         int maxfd=STDIN_FILENO;
         if(heartbeatFd>maxfd) maxfd=heartbeatFd;
 
-        bool pendingReady=pendingInput.find('\n')!=string::npos;
+        bool pendingReady=inputReader.hasMessage();
         int selectRet=pendingReady?1:select(maxfd+1,&readfds,nullptr,nullptr,nullptr);
 
         if(selectRet<0){
@@ -125,12 +235,14 @@ void ChatController::privateChat(int fd,const string& username){
         if(!pendingReady&&!FD_ISSET(STDIN_FILENO,&readfds)) continue;
 
         string message;
-        if(!readChatLine(pendingInput,message)) continue;
+        if(!inputReader.readMessage(message)) continue;
 
         if(message=="quit"){
             cout<<"退出聊天"<<endl;
             break;
         }
+
+        if(handleModeCommand(message,inputReader)) continue;
 
         if(message.empty()){
             //cout<<COLOR_GREEN<<"我: "<<COLOR_RESET;
@@ -172,8 +284,10 @@ void ChatController::groupChat(int fd,const string& username){
 |             群聊模式            |
 |                                |
 +--------------------------------+
-)";
+    )";
     cout<<"当前群: "<<groupName<<endl;
+    cout<<"发送方式:整体发送"<<endl;
+    cout<<"输入 /mode 查看或切换发送方式"<<endl;
     cout<<"输入 quit 返回"<<endl;
     cout<<COLOR_RESET;
     cout<<COLOR_GREEN;
@@ -181,7 +295,7 @@ void ChatController::groupChat(int fd,const string& username){
     cout<<COLOR_RESET;
 
     ChatInputMode inputMode;
-    string pendingInput;
+    ChatInputReader inputReader(false);
     while(true){
         fd_set readfds;
         FD_ZERO(&readfds);
@@ -193,7 +307,7 @@ void ChatController::groupChat(int fd,const string& username){
         int maxfd=STDIN_FILENO;
         if(heartbeatFd>maxfd) maxfd=heartbeatFd;
 
-        bool pendingReady=pendingInput.find('\n')!=string::npos;
+        bool pendingReady=inputReader.hasMessage();
         int selectRet=pendingReady?1:select(maxfd+1,&readfds,nullptr,nullptr,nullptr);
 
         if(selectRet<0){
@@ -209,12 +323,14 @@ void ChatController::groupChat(int fd,const string& username){
         if(!pendingReady&&!FD_ISSET(STDIN_FILENO,&readfds)) continue;
 
         string message;
-        if(!readChatLine(pendingInput,message)) continue;
+        if(!inputReader.readMessage(message)) continue;
 
         if(message=="quit"){
             cout<<"退出聊天"<<endl;
             break;
         }
+
+        if(handleModeCommand(message,inputReader)) continue;
 
         if(message.empty()){
             //cout<<COLOR_GREEN<<"我: "<<COLOR_RESET;

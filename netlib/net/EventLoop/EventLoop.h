@@ -23,12 +23,14 @@ class EventLoop{
       void loop();
       void addChannel(Channel* channel);
       void updateChannel(Channel* channel);
+      bool hasChannel(int fd,Channel* channel) const;
       void removeChannel(Channel* channel);
       void setTimerCallback(std::function<void()> cb);
 
       
       void addConnection(int fd,TcpConnection* conn);
       void deleteConnection(int fd);
+      bool hasConnection(int fd,TcpConnection* conn) const;
       void queueInLoop(std::function<void()> cb);
       void checkConnectionTimeout();
       bool isInLoopThread();//判断线程(跨线程聊天..)

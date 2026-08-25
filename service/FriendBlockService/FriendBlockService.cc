@@ -1,4 +1,5 @@
 #include "FriendBlockService.h"
+#include "../../manager/FriendManager/FriendManager.h"
 #include "../../model/FriendBlockModel/FriendBlockModel.h"
 #include "../../model/FriendModel/FriendModel.h"
 #include "../../protocol/MsgId.h"
@@ -31,24 +32,40 @@ json FriendBlockService::addBlock(const json& js){
         response["message"]="不可以屏蔽自己";
         return response;
     }
-    FriendModel friendModel;
+    //FriendModel friendModel;
     //4. 必须是好友
-    if(!friendModel.isFriend(username,blockname)){
-        LOG_ERROR<<username+" 和 "+blockname+" 不是好友，无法屏蔽";
+    if(!FriendManager::instance()
+        .isFriend(username,blockname)){
+
+        LOG_ERROR<<username
+                 <<" 和 "
+                 <<blockname
+                 <<" 不是好友";
+
+
         response["errno"]=1;
         response["message"]="不是好友,不可以屏蔽";
+
         return response;
     }
+
     FriendBlockModel model;
     //5. 判断是否已经屏蔽
-    if(model.isBlocked(username,blockname)){
-        LOG_ERROR<<username+" 已经屏蔽 "+blockname;
+    if(FriendManager::instance()
+        .isBlocked(username,blockname)){
+
+
         response["errno"]=1;
         response["message"]="你已经屏蔽过了";
+
         return response;
     }
+
     //6. 添加屏蔽
     if(model.addBlock(username,blockname)){
+        //更新内存缓存
+        FriendManager::instance().addBlock(username,blockname);
+
         LOG_INFO<<username+" 屏蔽 "+blockname+"成功";
         response["errno"]=0;
         response["message"]="屏蔽成功";
@@ -81,25 +98,28 @@ json FriendBlockService::removeBlock(const json& js){
     }
     FriendBlockModel model;
     //4. 判断是否存在屏蔽关系
-    if(!model.isBlocked(username,blockname)){
-        LOG_ERROR<<username+"未屏蔽"+blockname;
+    if(!FriendManager::instance().isBlocked(username,blockname)){
+        LOG_ERROR<<username<<"未屏蔽"<<blockname;
         response["errno"]=1;
         response["message"]="not blocked";
         return response;
     }
     //5. 删除屏蔽
     if(model.removeBlock(username,blockname)){
-        LOG_INFO<<username+"解除屏蔽"+blockname+" 成功";
+        
+        FriendManager::instance()
+        .removeBlock(username,blockname);
+        LOG_INFO<<username<<"解除屏蔽"<<blockname+" 成功";
         response["errno"]=0;
         response["message"]="remove block success";
     }else{
-        LOG_ERROR<<username+" 解除屏蔽 "+blockname+" 失败";
+        LOG_ERROR<<username<<" 解除屏蔽 "<<blockname+" 失败";
         response["errno"]=1;
         response["message"]="remove block failed";
     }
     return response;
 }
 bool FriendBlockService::isBlocked(const string& username,const string& blockname){
-    FriendBlockModel model;
-    return model.isBlocked(username,blockname);
+    return FriendManager::instance()
+        .isBlocked(username,blockname);
 }

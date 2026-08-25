@@ -11,10 +11,12 @@ RedisManager::RedisManager(){
     redisContext_=nullptr;
 }
 RedisManager::~RedisManager(){
+    std::lock_guard<std::mutex> lock(mutex_);
     if(redisContext_)
         redisFree((redisContext*)redisContext_);
 }
 bool RedisManager::connect(){
+    std::lock_guard<std::mutex> lock(mutex_);
     if(redisContext_ != nullptr){
         redisContext* existing = (redisContext*)redisContext_;
         if(existing->err == 0) return true;
@@ -23,6 +25,7 @@ bool RedisManager::connect(){
     }
     redisContext* context =redisConnect("127.0.0.1",6379);
     if(context==nullptr||context->err){
+        if(context!=nullptr) redisFree(context);
         LOG_ERROR<<"Redis连接失败";
         return false;
     }
@@ -31,6 +34,7 @@ bool RedisManager::connect(){
     return true;
 }
 bool RedisManager::saveOfflineMessage(const std::string& username,const std::string& message){
+    std::lock_guard<std::mutex> lock(mutex_);
     LOG_INFO<<"保存用户离线消息 用户="<<username;
     if(redisContext_==NULL) return 0;
     redisContext* context=(redisContext*)redisContext_;
@@ -41,6 +45,7 @@ bool RedisManager::saveOfflineMessage(const std::string& username,const std::str
     return 1;
 }
 vector<string> RedisManager::getOfflineMessage(const string& username){
+    std::lock_guard<std::mutex> lock(mutex_);
     vector<string> messages;
     if(redisContext_==NULL) return messages;
     redisContext* context=(redisContext*)redisContext_;
@@ -56,6 +61,7 @@ vector<string> RedisManager::getOfflineMessage(const string& username){
     return messages;
 }
 void RedisManager::clearOfflineMessage(const string& username){
+    std::lock_guard<std::mutex> lock(mutex_);
     if(redisContext_==nullptr) return;
     redisContext* context =(redisContext*)redisContext_;
     string key="offline:private:"+username;
@@ -63,6 +69,7 @@ void RedisManager::clearOfflineMessage(const string& username){
     if(reply) freeReplyObject(reply);
 }
 bool RedisManager::saveGroupOfflineMessage(const std::string& username,const std::string& message){
+    std::lock_guard<std::mutex> lock(mutex_);
     LOG_INFO<<"保存群聊离线消息 用户="<<username;
     if(redisContext_==NULL) return 0;
     redisContext* context=(redisContext*)redisContext_;
@@ -73,6 +80,7 @@ bool RedisManager::saveGroupOfflineMessage(const std::string& username,const std
     return 1;
 }
 vector<string> RedisManager::getGroupOfflineMessage(const string& username){
+    std::lock_guard<std::mutex> lock(mutex_);
     vector<string> messages;
     if(redisContext_==NULL) return messages;
     redisContext* context=(redisContext*)redisContext_;
@@ -88,6 +96,7 @@ vector<string> RedisManager::getGroupOfflineMessage(const string& username){
     return messages;
 }
 void RedisManager::clearGroupOfflineMessage(const string& username){
+    std::lock_guard<std::mutex> lock(mutex_);
     if(redisContext_==nullptr) return;
     redisContext* context =(redisContext*)redisContext_;
     string key="offline:group:"+username;
@@ -95,6 +104,7 @@ void RedisManager::clearGroupOfflineMessage(const string& username){
     if(reply) freeReplyObject(reply);
 }
 bool RedisManager::setOnline(const string& username){
+    std::lock_guard<std::mutex> lock(mutex_);
     if(redisContext_==nullptr) return 0;
     redisContext* context=(redisContext*) redisContext_;
     string key="online:"+username;
@@ -107,6 +117,7 @@ bool RedisManager::setOnline(const string& username){
     return 1;
 }
 bool RedisManager::setOffline(const string& username){
+    std::lock_guard<std::mutex> lock(mutex_);
     if(redisContext_==nullptr)
         return false;
     redisContext* context=(redisContext*)redisContext_;
@@ -122,6 +133,7 @@ bool RedisManager::setOffline(const string& username){
     return true;
 }
 bool RedisManager::isOnline(const string& username){
+    std::lock_guard<std::mutex> lock(mutex_);
     if(redisContext_==nullptr) return 0;
     redisContext* context=(redisContext*) redisContext_;
     string key="online:"+username;
@@ -143,6 +155,7 @@ bool RedisManager::isOnline(const string& username){
     return result;
 }
 bool RedisManager::saveVerifyCode(const string& target,const string& code){
+    std::lock_guard<std::mutex> lock(mutex_);
     if(redisContext_==nullptr) return 0;
     redisContext* context=(redisContext*)redisContext_;
     string key="verify:"+target;
@@ -152,6 +165,7 @@ bool RedisManager::saveVerifyCode(const string& target,const string& code){
     return 1;
 }
 string RedisManager::getVerifyCode(const string& target){
+    std::lock_guard<std::mutex> lock(mutex_);
     if(redisContext_==nullptr) return "";
     redisContext* context=(redisContext*)redisContext_;
     string key="verify:"+target;
@@ -172,6 +186,7 @@ string RedisManager::getVerifyCode(const string& target){
     return "";
 }
 bool RedisManager::deleteVerifyCode(const string& target){
+    std::lock_guard<std::mutex> lock(mutex_);
     if(redisContext_==nullptr) return 0;
     redisContext* context=(redisContext*)redisContext_;
     string key="verify:"+target;
@@ -180,6 +195,7 @@ bool RedisManager::deleteVerifyCode(const string& target){
     return 1;
 }
 bool RedisManager::saveOfflineFileRequest(const string& username,const json& js){
+    std::lock_guard<std::mutex> lock(mutex_);
     if(redisContext_==nullptr) return 0;
     redisContext* context=(redisContext*)redisContext_;
     string key="offline:file:"+username;
@@ -193,6 +209,7 @@ bool RedisManager::saveOfflineFileRequest(const string& username,const json& js)
     return 1;
 }
 vector<string> RedisManager::getOfflineFile(const string& username){
+    std::lock_guard<std::mutex> lock(mutex_);
     vector<string> messages;
     if(redisContext_==NULL) return messages;
     redisContext* context=(redisContext*)redisContext_;
@@ -206,6 +223,7 @@ vector<string> RedisManager::getOfflineFile(const string& username){
     return messages;
 }
 void RedisManager::clearOfflineFiles(const string& username){
+    std::lock_guard<std::mutex> lock(mutex_);
     if(redisContext_==nullptr) return;
     redisContext* context =(redisContext*) redisContext_;
     string key="offline:file:"+username;
@@ -213,6 +231,7 @@ void RedisManager::clearOfflineFiles(const string& username){
     if(reply) freeReplyObject(reply);
 }
 bool RedisManager::saveOfflineGroupInvite(const string& username,const json& js){
+    std::lock_guard<std::mutex> lock(mutex_);
     if(redisContext_==nullptr) return false;
     redisContext* context=(redisContext*)redisContext_;
     string key="offline:group_invite:"+username;
@@ -227,6 +246,7 @@ bool RedisManager::saveOfflineGroupInvite(const string& username,const json& js)
     return true;
 }
 vector<string> RedisManager::getOfflineGroupInvite(const string& username){
+    std::lock_guard<std::mutex> lock(mutex_);
     vector<string> invites;
     if(redisContext_==nullptr) return invites;
     redisContext* context=(redisContext*)redisContext_;
@@ -240,6 +260,7 @@ vector<string> RedisManager::getOfflineGroupInvite(const string& username){
     return invites;
 }
 void RedisManager::clearOfflineGroupInvite(const string& username){
+    std::lock_guard<std::mutex> lock(mutex_);
     if(redisContext_==nullptr) return;
     redisContext* context=(redisContext*)redisContext_;
     string key="offline:group_invite:"+username;

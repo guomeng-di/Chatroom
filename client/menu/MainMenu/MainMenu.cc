@@ -27,7 +27,7 @@
 #include "../../FileClient/FileClient.h"
 #include "../Color.h"
 #include <nlohmann/json.hpp>
-
+#define ACCOUNT_LOGIN_ELSEWHERE 601
 using namespace std;
 using json=nlohmann::json;
 
@@ -315,7 +315,7 @@ bool registerUser(int fd){
     string code;
     cout<<"verify code:"; cin>>code;
     string password;
-    cout<<"password:"; cin>>password;
+    cout<<"password:"; password=getPassword();
     json regMsg;
     regMsg["msgid"]=REGISTER_MSG;
     regMsg["username"]=username;

@@ -10,6 +10,7 @@ struct ReceiveFileInfo{
     std::string filename;
     long long filesize=0;
     long long receivedSize=0;//已经收到的字节
+    int updateCount;//新增
 };
 
 class FileManager{

@@ -50,7 +50,7 @@ int main(){
                 epoll_ctl(epfd,EPOLL_CTL_ADD,client_fd,&ev1);
             }else{//客户端的消息
                 char buf[1024*1024];
-                int n=recv(events[i].data.fd,buf,1024,0);
+                int n=recv(events[i].data.fd,buf,sizeof(buf),0);
                 if(n<0){
                     perror("recv");
                     return -1;

@@ -37,6 +37,7 @@ class Buffer{
     private:
     bool error_;
       std::string buffer_;//保存收到的数据
+      size_t readIndex_;
       static const uint32_t MAX_MESSAGE_SIZE = 10 * 1024 * 1024;
 };
 //peek查看Buffer当前有什么数据，但是不改变Buffer内容.主要用于：判断消息长度

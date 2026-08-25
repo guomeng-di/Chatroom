@@ -1,14 +1,16 @@
 #include "ChatService.h"
 #include "../../manager/OnlineUserManager/OnlineUserManager.h" 
 #include "../../manager/RedisManager/RedisManager.h" 
+#include "../../manager/FriendManager/FriendManager.h" 
+
 #include "../../model/PrivateMessageModel/PrivateMessageModel.h"
 #include "../../netlib/net/TcpConnection/TcpConnection.h"
-#include "../../model/FriendModel/FriendModel.h"
-#include "../../model/FriendBlockModel/FriendBlockModel.h"
+// #include "../../model/FriendModel/FriendModel.h"
+// #include "../../model/FriendBlockModel/FriendBlockModel.h"
 #include "../../protocol/MsgId.h"
 #include <iostream>
 #include "../../netlib/base/Logger/Logger.h"
-#include <thread>
+#include "../../netlib/base/TaskThreadPool/TaskThreadPool.h"
 
 using namespace std;
 ChatService::ChatService(){}
@@ -40,22 +42,31 @@ json ChatService::chat(const json& js,TcpConnection* conn){
         return response;
 }
     //判断是否好友
-FriendModel friendModel;
-if(!friendModel.isFriend(from,to)){
-    //cout<<"not friend"<<endl;
-    LOG_ERROR<<"双方不是好友 from="<<from<<" to="<<to;
-    response["msgid"]=CHAT_ACK;
-    response["errno"]=1;
-    response["message"]="not friend";
-    return response;
-}
+if(!FriendManager::instance().isFriend(from,to)){
+
+        LOG_ERROR<<"双方不是好友 from="
+                 <<from
+                 <<" to="
+                 <<to;
+
+
+        response["msgid"]=CHAT_ACK;
+        response["errno"]=1;
+        response["message"]="not friend";
+
+        return response;
+    }
     //判断屏蔽了没
-    FriendBlockModel blockModel;
-    if(blockModel.isBlocked(to,from)){
+    if(FriendManager::instance().isBlocked(to,from)){
     response["msgid"]=CHAT_ACK;
     response["errno"]=1;
     response["message"]="you are blocked";
-    LOG_WARN<<"用户被屏蔽 from="<<from<<" to="<<to;
+
+    LOG_WARN<<"用户被屏蔽 from="
+            <<from
+            <<" to="
+            <<to;
+
     return response;
 }
     //发送信息
@@ -71,7 +82,7 @@ if(!friendModel.isFriend(from,to)){
 
         //在线消息先完成网络转发，历史记录异步保存，避免阻塞事件循环
         if(target){
-            thread([from,to,msg](){
+            TaskThreadPool::instance().enqueue([from,to,msg](){
                 PrivateMessageModel model;
                 if(!model.saveMessage(from,to,msg)){
                     LOG_ERROR<<"保存私聊消息失败 from="<<from<<" to="<<to;
@@ -79,7 +90,7 @@ if(!friendModel.isFriend(from,to)){
                 else{
                     LOG_INFO<<"保存私聊消息成功 from="<<from<<" to="<<to;
                 }
-            }).detach();
+            });
         }else{
             //离线消息保持原有同步保存逻辑
             PrivateMessageModel model;

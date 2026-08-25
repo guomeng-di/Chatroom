@@ -4,6 +4,7 @@
 #include "../../model/FriendRequestModel/FriendRequestModel.h"
 #include "../../manager/OnlineUserManager/OnlineUserManager.h"
 #include "../../manager/RedisManager/RedisManager.h"
+#include "../../manager/FriendManager/FriendManager.h"
 #include "../FriendStatusService/FriendStatusService.h"
 #include "../../netlib/net/TcpConnection/TcpConnection.h"
 #include "../../protocol/MsgId.h"
@@ -69,12 +70,26 @@ json LoginService::login(const json& js,TcpConnection* conn){
     }
     if(flag){
         LOG_INFO<<"用户登录成功，用户名:"<<username;
+
+        if(OnlineUserManager::instance().isOnline(username)){
+        LOG_ERROR<<"用户已经在线:"<<username;
+
         response["msgid"]=LOGIN_ACK;
-        response["errno"]=0;
-        response["message"]="login success";
-        response["username"]=username;
-        conn->setUsername(username);
+        response["errno"]=2;
+        response["message"]="account already online";
+
         conn->send(response.dump());
+
+        return response;
+    }
+
+        //存好友表
+        FriendManager::instance().loadFriendList(username);
+
+        FriendManager::instance().loadBlockList(username);
+
+//LOG_INFO<<"加载屏蔽列表成功 用户:"<<username;
+        conn->setUsername(username);
         OnlineUserManager::instance().addUser(username,conn);
         if(RedisManager::instance().connect()){
             RedisManager::instance().setOnline(username);
@@ -82,6 +97,13 @@ json LoginService::login(const json& js,TcpConnection* conn){
         }else{
             LOG_ERROR<<"Redis连接失败，无法更新在线状态，用户名:"<<username;
         }
+
+        response["msgid"]=LOGIN_ACK;
+        response["errno"]=0;
+        response["message"]="login success";
+        response["username"]=username;
+        
+        conn->send(response.dump());
         FriendStatusService::notifyOnline(username);
         LOG_INFO<<"通知好友上线成功，用户名:"<<username;
         FriendRequestModel requestModel;

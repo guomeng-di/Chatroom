@@ -5,7 +5,7 @@
 #include <iostream>
 using namespace std;
 
-Buffer::Buffer():error_(0){
+Buffer::Buffer():error_(0),readIndex_(0){
 }
 Buffer::~Buffer(){
 }
@@ -18,14 +18,22 @@ void Buffer::append(const char* data,size_t len){
 //     return msg;
 // }
 size_t Buffer::size(){
-    return buffer_.size();
+    return buffer_.size()-readIndex_;
 }
 const char* Buffer::peek(){
-    return buffer_.data();
+    return buffer_.data()+readIndex_;
 }
 void Buffer::retrieve(size_t len){
-    if(len>=buffer_.size()) buffer_.clear();
-    else buffer_.erase(0,len);
+    if(len>=size()){
+        buffer_.clear();
+        readIndex_=0;
+        return;
+    }
+    readIndex_+=len;
+    if(readIndex_>=1024*1024 && readIndex_*2>=buffer_.size()){
+        buffer_.erase(0,readIndex_);
+        readIndex_=0;
+    }
 }
 bool Buffer::hasMessage(){
     if(size()<4) return 0;
@@ -51,12 +59,13 @@ string Buffer::retrieveMessage(){
     uint32_t body_len=ntohl(len);
     if(body_len>MAX_MESSAGE_SIZE){
         buffer_.clear();
+        readIndex_=0;
         return "";
     }
     if(size()<4+body_len) return "";
     
-    string msg(buffer_.data()+4,body_len);//跳过4字节消息头
-    buffer_.erase(0,body_len+4);
+    string msg(peek()+4,body_len);//跳过4字节消息头
+    retrieve(body_len+4);
     return msg;
 }
 bool Buffer::hasError(){

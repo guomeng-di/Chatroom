@@ -45,20 +45,24 @@
     // Logger::instance().info("create group success");
     return true;
 }
- bool GroupModel::addMember(const string& groupName,const string& username){
-     MySQLManager mysql;
-     if(!mysql.connect()){
-    //  Logger::instance().error("add group member mysql connect failed");
-     return false;
- }
-     string sql="insert into group_member(groupname,username) values('"+groupName+"','"+username+"')";
-     if(mysql.execute(sql)){
-    //  Logger::instance().info("add group member success");
-     return true;
- }
-//  Logger::instance().error("add group member failed");
- return false;
- }
+bool GroupModel::addMember(const string& groupName,const string& username){
+    MySQLManager mysql;
+
+    if(!mysql.connect()){
+        return false;
+    }
+
+    string checkSql="select groupname from chat_group where groupname='"+groupName+"'";
+
+    if(!mysql.query(checkSql)){
+        return false;
+    }
+
+    string sql="insert into group_member(groupname,username) values('"+groupName+"','"+username+"')";
+
+    return mysql.execute(sql);
+}
+
  bool GroupModel::leaveGroup(const string& groupName,const string& username){
      MySQLManager mysql;
      if(!mysql.connect()){

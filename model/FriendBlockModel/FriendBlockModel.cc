@@ -91,3 +91,65 @@ bool FriendBlockModel::removeAllBlock(
 
     return false;
 }
+vector<string> FriendBlockModel::getBlockList(
+    const string& username
+)
+{
+
+    vector<string> result;
+
+
+    string sql =
+    "select blockname from friend_block where username='"
+    + username +
+    "'";
+
+
+    MySQLManager mysql;
+
+
+    if(!mysql.connect())
+    {
+        return result;
+    }
+
+
+
+    if(!mysql.query(sql))
+    {
+        return result;
+    }
+
+
+
+    MYSQL_RES* res=mysql.query(sql);
+
+
+    if(!res)
+    {
+        return result;
+    }
+
+
+
+    MYSQL_ROW row;
+
+
+    while((row=mysql_fetch_row(res))!=nullptr)
+    {
+
+        if(row[0])
+        {
+            result.push_back(row[0]);
+        }
+
+    }
+
+
+
+    mysql_free_result(res);
+
+
+    return result;
+
+}

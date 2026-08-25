@@ -1,6 +1,7 @@
 #pragma once
 #include <string>
 #include <vector>
+#include <mutex>
 #include <nlohmann/json.hpp>
 using json=nlohmann::json;
 
@@ -61,5 +62,6 @@ class RedisManager{
     ~RedisManager();
 
     void* redisContext_;
+    std::mutex mutex_;
     //维持和 Redis 服务器之间通信通道的凭证
 };

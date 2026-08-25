@@ -3,7 +3,7 @@
 #include "../../protocol/MsgId.h"
 #include <filesystem>
 #include <iostream>
-#include <thread>
+#include "../../netlib/base/TaskThreadPool/TaskThreadPool.h"
 #include "../../src/config.h"
 #include "../../model/GroupModel/GroupModel.h"
 #include <arpa/inet.h>
@@ -15,9 +15,16 @@
 #include "../../netlib/net/TcpConnection/TcpConnection.h"
 #include "../../model/FriendModel/FriendModel.h"
 #include "../../model/FriendBlockModel/FriendBlockModel.h"
+#include <mutex>
+#include <unordered_map>
 
 
 using namespace std;
+namespace {
+const long long FILE_PROGRESS_INTERVAL=8LL*1024*1024;
+mutex fileProgressMutex;
+unordered_map<string,long long> fileProgress;
+}
 json FileService::sendFileRequest(const json& js,TcpConnection* conn){
     json res;
     res["msgid"] = SEND_FILE_REQUEST_ACK;
@@ -452,30 +459,23 @@ void FileService::receiveFileData(const FilePacket& packet,TcpConnection* conn){
     if(target->sendBinary(data)){
         long long asyncOffset =js["offset"];
         long long asyncSize =asyncOffset + packet.data.size();
-        thread([fileid,receiver,asyncSize](){
-            FileModel model;
-            long long old =model.getReceivedSize(fileid,receiver);
-            long long nextSize = asyncSize > old ? asyncSize : old;
-            if(nextSize>old){
-                model.updateReceivedSize(fileid,receiver,nextSize);
-                //LOG_INFO << "update file receive progress,fileid=" << fileid<< ",receiver=" << receiver<< ",size=" << nextSize;
+        string progressKey=to_string(fileid)+"_"+receiver;
+        bool updateProgress=false;
+        {
+            lock_guard<mutex> lock(fileProgressMutex);
+            long long& lastSize=fileProgress[progressKey];
+            if(asyncSize>=filesize || asyncSize-lastSize>=FILE_PROGRESS_INTERVAL){
+                lastSize=asyncSize;
+                updateProgress=true;
             }
-        }).detach();
-        return;
-#if 0
-        FileModel model;
-
-        long long offset =js["offset"];
-        long long size =offset + packet.data.size();
-        long long old =model.getReceivedSize(fileid,receiver);
-        long long nextSize = size > old ? size : old;
-
-        if(nextSize>old){
-            model.updateReceivedSize(fileid,receiver,nextSize);
-
-            LOG_INFO << "更新文件接收进度,fileid=" << fileid<< ",接收者=" << receiver<< ",当前大小=" << nextSize;
         }
- #endif
+        if(updateProgress){
+            TaskThreadPool::instance().enqueue([fileid,receiver,asyncSize](){
+                FileModel model;
+                model.updateReceivedSize(fileid,receiver,asyncSize);
+            });
+        }
+        return;
     }else{
         LOG_ERROR << "发送文件数据失败,fileid=" << fileid<< ",接收者=" << receiver;
     }

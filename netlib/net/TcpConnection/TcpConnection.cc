@@ -152,25 +152,33 @@ void TcpConnection::handleRead(){
 }
 void TcpConnection::send(const string& msg){
     LOG_INFO<<"准备发送普通消息 fd="<<fd_<<" size="<<msg.size();
+    EventLoop* eventLoop=loop_;
+    int connectionFd=fd_;
+    TcpConnection* connection=this;
     loop_->queueInLoop(
-        [this,msg](){
+        [this,eventLoop,connectionFd,connection,msg](){
+            if(!eventLoop->hasConnection(connectionFd,connection)) return;
             string data=MessageCodec::encode(msg);
             outputBuffer_.append(data.data(),data.size());
             LOG_INFO<<"消息加入发送缓冲区 fd="<<fd_<<" size="<<data.size();
             channel_->enableWriting();
-            handleWrite();
+            // handleWrite();
         }
     );
 }
-bool TcpConnection::sendBinary(const string& msg){
+bool TcpConnection::sendBinary(string msg){
     LOG_INFO<<"准备发送二进制数据 fd="<<fd_<<" size="<<msg.size();
     // 二进制文件包也进入连接所属 EventLoop 的发送缓冲，避免和普通消息直接并发写 socket 导致协议包交错。
+    EventLoop* eventLoop=loop_;
+    int connectionFd=fd_;
+    TcpConnection* connection=this;
     loop_->queueInLoop(
-        [this,msg](){
+        [this,eventLoop,connectionFd,connection,msg=std::move(msg)](){
+            if(!eventLoop->hasConnection(connectionFd,connection)) return;
             outputBuffer_.append(msg.data(),msg.size());
             LOG_INFO<<"二进制数据加入发送缓冲区 fd="<<fd_<<" size="<<msg.size();
             channel_->enableWriting();
-            handleWrite();
+            //handleWrite();
         }
     );
     return true;
@@ -234,10 +242,16 @@ void TcpConnection::handleWrite(){
 
     while(outputBuffer_.size()>0){
 
+        size_t sendSize =
+min(
+    outputBuffer_.size(),
+    static_cast<size_t>(64*1024)
+);
+
         ssize_t n = ::send(
             fd_,
             outputBuffer_.peek(),
-            outputBuffer_.size(),
+            sendSize,
             MSG_NOSIGNAL
         );
 

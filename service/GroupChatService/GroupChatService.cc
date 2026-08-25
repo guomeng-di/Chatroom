@@ -7,7 +7,7 @@
 #include <iostream>
 #include "../../protocol/MsgId.h"
 #include "../../netlib/base/Logger/Logger.h"
-#include <thread>
+#include "../../netlib/base/TaskThreadPool/TaskThreadPool.h"
 using namespace std;
 GroupChatService::GroupChatService(){}
 GroupChatService::~GroupChatService(){}
@@ -66,12 +66,12 @@ json GroupChatService::groupChat(const json& js,TcpConnection* conn){
         }
     }
     //群聊通知先完成网络发送，历史记录异步保存，避免阻塞事件循环
-    thread([groupName,username,message](){
+    TaskThreadPool::instance().enqueue([groupName,username,message](){
         GroupMessageModel messageModel;
         if(!messageModel.saveMessage(groupName,username,message)){
             LOG_ERROR<<"保存群聊历史消息失败";
         }
-    }).detach();
+    });
     if(!offlineMembers.empty()&&RedisManager::instance().connect()){
         for(auto& member:offlineMembers){
             if(RedisManager::instance().saveGroupOfflineMessage(member,data)){

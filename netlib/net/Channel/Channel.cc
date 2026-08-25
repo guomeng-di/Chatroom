@@ -44,6 +44,9 @@ void Channel::handleEvent(){
         LOG_WARN<<"检测到EPOLLHUP连接挂断 fd="<<fd_;
     }
 
+    EventLoop* loop=loop_;
+    Channel* self=this;
+
     if(revents & EPOLLOUT){
         LOG_INFO<<"检测到可写事件EPOLLOUT fd="<<fd_;
 
@@ -51,7 +54,8 @@ void Channel::handleEvent(){
             LOG_INFO<<"执行写回调 fd="<<fd_;
             writeCallback_();
         }
-        return;
+        // 写回调发生错误时可能关闭并释放当前连接，不能继续访问已释放的 Channel。
+        if(!loop->hasChannel(fd_,self)) return;
     }
 
     if(revents & EPOLLIN){

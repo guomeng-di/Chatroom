@@ -36,8 +36,6 @@ private:
 
     FileClient(){}
 
-    bool existBlock(int blockidconst, std::vector<int>& blocks);
-
 private:
 
     std::string username_;

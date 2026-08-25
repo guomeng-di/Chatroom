@@ -14,10 +14,10 @@
 #include "../../src/config.h"
 #include <nlohmann/json.hpp>
 #include "../../netlib/base/Logger/Logger.h"
-#include "../../model/FileModel/FileModel.h"
+class TcpConnection;
 using json=nlohmann::json;
 using namespace std;
-#define FILE_BLOCK_SIZE (1024*1024)
+#define FILE_BLOCK_SIZE (512*1024)
 namespace {
 string makeSendKey(const string& targetType,const string& target,const string& filename){
     return targetType + "_" + target + "_" + filename;
@@ -25,9 +25,7 @@ string makeSendKey(const string& targetType,const string& target,const string& f
 }
 //发送方->服务器
 void FileClient::sendFile(int fd,int fileid,const string& filepath,const string& filename,const string& target,const string& targetType,const string& groupname,long long offset){
-    // File transfer is deliberately detached from the receive/menu threads.
-    // The caller returns immediately, so the user can continue chatting while
-    // this worker reads and sends file packets in the background.
+
     string sender=username_;
     
     thread([fd,fileid,filepath,filename,target,targetType,groupname,offset,sender](){
@@ -86,13 +84,19 @@ void FileClient::sendFile(int fd,int fileid,const string& filepath,const string&
                 js["receiver"]=target;
                 js["groupname"] =groupname;
             }
-            string data(buffer.data(),n);
-            string packet =MessageCodec::encodeBinary(FILE_DATA_MSG,js,data);
-            if(!SocketUtil::sendAll(fd,packet)){
-                cout<<"send file failed"<<endl;
-                close(filefd);
-                return;
-            }
+           string packet =
+MessageCodec::encodeBinary(
+    FILE_DATA_MSG,
+    js,
+    buffer.data(),
+    n
+);
+if(!SocketUtil::sendAll(fd,packet))
+{
+    cout<<"send file failed"<<endl;
+    close(filefd);
+    return;
+}
             current+= n;
         }
         close(filefd);
@@ -115,6 +119,7 @@ void FileClient::sendFile(int fd,int fileid,const string& filepath,const string&
             finish["groupname"]=groupname;
         }
         string finishData =MessageCodec::encode(finish.dump());
+        // conn->sendBinary(std::move(finishData));
         SocketUtil::sendAll(fd,finishData);
         cout<<"file send finish:"<<filename<<endl;
       }catch(const exception& e){
@@ -173,10 +178,8 @@ void FileClient::receiveFile(const FilePacket& packet,int fd){
     int fileid=js["fileid"];
     string fromname=js["fromname"];
     string filename=js["filename"];
-    long long filesize=js["filesize"];
     long long offset=js["offset"];
 
-    string data=packet.data;
     string username=getUsername();
     string dir=FILE_ROOT+username+"/"+to_string(fileid)+"/";
     filesystem::create_directories(dir);
@@ -187,21 +190,11 @@ void FileClient::receiveFile(const FilePacket& packet,int fd){
         cout<<"open receive file failed"<<endl;
         return;
     }
-    ssize_t ret=pwrite(filefd,data.data(),data.size(),offset);
+    ssize_t ret=pwrite(filefd,packet.data.data(),packet.data.size(),offset);
     close(filefd);
-    if(ret!=(ssize_t)data.size()){
+    if(ret!=(ssize_t)packet.data.size()){
         cout<<"pwrite failed"<<endl;
         return;
     }
 
-    cout<<"receive offset="<<offset<<" size="<<data.size()<<endl;
-    FileModel model;
-    long long oldSize=model.getReceivedSize(fileid,username_);
-    long long newSize=offset + data.size();
-    if(newSize < oldSize) newSize = oldSize;
-    model.updateReceivedSize(fileid,username,newSize);
-    cout<<"========== RECEIVE UPDATE =========="<<endl;
-    cout<<"fileid="<<fileid<<endl;
-    cout<<"received="<<newSize<<"/"<<filesize<<endl;
-    cout<<"===================================="<<endl;
 }

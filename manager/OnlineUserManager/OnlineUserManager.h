@@ -2,6 +2,7 @@
 
 #include <unordered_map>
 #include <string>
+#include <mutex>
 class TcpConnection;
 class OnlineUserManager{
     public:
@@ -18,6 +19,7 @@ class OnlineUserManager{
       OnlineUserManager(const OnlineUserManager&)=delete;
       OnlineUserManager& operator=(const OnlineUserManager&)=delete;
       std::unordered_map<std::string,TcpConnection*> users_;
+      std::mutex mutex_;
 };
 extern OnlineUserManager onlineUserManager;
  

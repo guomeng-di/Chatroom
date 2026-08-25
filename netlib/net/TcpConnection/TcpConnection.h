@@ -13,7 +13,7 @@ class TcpConnection{
       void handleRead();//recv()
       void handleWrite();
       void send(const std::string& msg);//send()
-      bool sendBinary(const std::string& msg);//send()二进制文件
+      bool sendBinary(std::string msg);//send()二进制文件
       void handleClose();//划掉前台的记录,去除客户端fd
       void setUsername(const std::string& username);//目的:conn保存:username+fd+msg
       std::string getUsername();

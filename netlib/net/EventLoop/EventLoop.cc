@@ -24,6 +24,15 @@ EventLoop::EventLoop():quit_(0),threadId_(std::this_thread::get_id()),timerFd_(n
 EventLoop::~EventLoop(){
     LOG_INFO<<"EventLoop析构";
     delete timerFd_;
+    if(wakeupChannel_){
+        removeChannel(wakeupChannel_);
+        delete wakeupChannel_;
+        wakeupChannel_=nullptr;
+    }
+    if(wakeupFd_!=-1){
+        close(wakeupFd_);
+        wakeupFd_=-1;
+    }
 }
 void EventLoop::loop(){//不断等待事件发生，然后找到对应的Channel，让Channel处理事件
     LOG_INFO<<"EventLoop开始运行";
@@ -73,6 +82,10 @@ void EventLoop::updateChannel(Channel* channel){
         epoller_.modifyFd(fd, channel->events());
         LOG_INFO<<"更新Channel事件 fd="<<fd;
     }
+}
+bool EventLoop::hasChannel(int fd,Channel* channel) const{
+    auto it=channels_.find(fd);
+    return it!=channels_.end() && it->second==channel;
 }
 void EventLoop::removeChannel(Channel* channel){
     int fd=channel->fd();
@@ -133,6 +146,10 @@ void EventLoop::deleteConnection(int fd){
         delete conn;
         LOG_INFO<<"删除TcpConnection fd="<<fd;
     }
+}
+bool EventLoop::hasConnection(int fd,TcpConnection* conn) const{
+    auto it=connections_.find(fd);
+    return it!=connections_.end() && it->second==conn;
 }
 bool EventLoop::isInLoopThread(){
     return threadId_==std::this_thread::get_id();

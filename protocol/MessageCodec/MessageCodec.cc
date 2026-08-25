@@ -26,16 +26,20 @@ string MessageCodec::decode(const string& data){
 
 // | totalLen(4) | msgid(4) | jsonLen(4) | json | binary |
 string MessageCodec::encodeBinary(int msgid,const json& js,const string& data){
+    return encodeBinary(msgid,js,data.data(),data.size());
+}
+string MessageCodec::encodeBinary(int msgid,const json& js,const char* data,size_t size){
     string jsonStr=js.dump();
     size_t jsonLen=jsonStr.size();
-    int totalLen=4+4+jsonLen+data.size();//4:msgid   data.size():data
+    int totalLen=4+4+jsonLen+size;//4:msgid   data.size():data
     uint32_t msgid_=htonl(msgid),totalLen_=htonl(totalLen),jsonLen_=htonl(jsonLen);
     string result;
+    result.reserve(12+jsonLen+size);
     result.append((char*)&totalLen_,4);//长度
     result.append((char*)&msgid_,4);//msgid
     result.append((char*)&jsonLen_,4);//jsonLen
     result+=jsonStr;
-    result+=data;
+    result.append(data,size);
     return result;//json+二进制
 }
 
@@ -46,7 +50,6 @@ int MessageCodec::getMsgId(const string& data){
 }
 FilePacket MessageCodec::decodeBinary(const string& msg){
     FilePacket packet;
-    cout<<"decode binary size="<<msg.size()<<endl;
     if(msg.size() < 8){
         throw runtime_error("binary packet too small");
     }
@@ -59,8 +62,6 @@ FilePacket MessageCodec::decodeBinary(const string& msg){
     memcpy(&jsonLen,msg.data()+4,4);//获取json长度
     jsonLen=ntohl(jsonLen);
 
-    cout << "binary msgid="<< packet.msgid<< endl;
-    cout << "jsonLen="<< jsonLen<< endl;
     // 3. 检查 jsonLen
     if(jsonLen > msg.size()- 8)
     {
@@ -82,7 +83,6 @@ FilePacket MessageCodec::decodeBinary(const string& msg){
     size_t dataOffset = 8 + jsonLen;
     size_t dataSize =msg.size() - dataOffset;
     packet.data.assign(msg.data() + dataOffset,dataSize);
-    cout << "file data size="<< packet.data.size()<< endl;
     return packet;
 
 }
