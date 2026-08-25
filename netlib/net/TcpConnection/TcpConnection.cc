@@ -33,8 +33,10 @@ fd_(fd),loop_(loop),channel_(new Channel(loop_,fd_)),connected_(true){
 TcpConnection::~TcpConnection(){
     // 释放channel
     LOG_INFO<<"销毁TcpConnection fd="<<fd_;
-    if(channel_) delete channel_;
-    if(fd_!=-1) close(fd_);
+    if(channel_){
+        delete channel_;
+        channel_=nullptr;}
+    
 }
 void TcpConnection::handleRead(){
 
@@ -174,7 +176,7 @@ bool TcpConnection::sendBinary(const string& msg){
     return true;
 }
 void TcpConnection::handleClose(){
-     LOG_INFO<<"开始关闭TcpConnection fd="<<fd_<<" username="<<username_;
+     //LOG_INFO<<"开始关闭TcpConnection fd="<<fd_<<" username="<<username_;
     if(!connected_){
         LOG_WARN<<"连接已经关闭,重复关闭 fd="<<fd_;
         return;
@@ -193,15 +195,19 @@ void TcpConnection::handleClose(){
 
     int oldfd=fd_;
 
-    if(fd_!=-1){
-        LOG_INFO<<"移除Channel fd="<<fd_;
+    if(channel_){
         loop_->removeChannel(channel_);
+    }
+
+    if(fd_!=-1){
+        // LOG_INFO<<"移除Channel fd="<<fd_;
+        // loop_->removeChannel(channel_);
 
         close(fd_);
         fd_=-1;
     }
     loop_->deleteConnection(oldfd);
-    LOG_INFO<<"TcpConnection关闭完成 fd="<<oldfd;
+    //LOG_INFO<<"TcpConnection关闭完成 fd="<<oldfd;
 }
 void TcpConnection::setUsername(const string& username){
     username_=username;
