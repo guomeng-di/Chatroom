@@ -1,5 +1,7 @@
 #pragma once
 #include <string>
+#include <deque>
+#include <cstddef>
 #include "../Buffer/Buffer.h"
 #include <ctime>
 class EventLoop;
@@ -13,9 +15,9 @@ class TcpConnection{
       void handleRead();//recv()
       void handleWrite();
       void send(const std::string& msg);//send()
-      bool sendBinary(std::string msg);//send()二进制文件
-      void handleClose();//划掉前台的记录,去除客户端fd
-      void setUsername(const std::string& username);//目的:conn保存:username+fd+msg
+      bool sendBinary(std::string msg);//send binary file
+      void handleClose();//remove connection record
+      void setUsername(const std::string& username);//save username and fd
       std::string getUsername();
 
       void updateActiveTime();
@@ -24,9 +26,12 @@ class TcpConnection{
     private:
       int fd_;
       EventLoop* loop_;
-      Channel* channel_; 
+      Channel* channel_;
       Buffer buffer_;
-      Buffer outputBuffer_;//待发送数据
+      std::deque<std::string> outputQueue_;
+      std::deque<std::string> fileOutputQueue_;
+      std::string outputFrame_;
+      size_t outputOffset_=0;
       std::string username_;
       time_t lastActiveTime_;
       bool connected_;

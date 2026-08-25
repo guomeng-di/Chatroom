@@ -11,6 +11,7 @@ class FileModel{
 
       bool saveFileInfo(const std::string& from,const std::string& to,const std::string& groupname,const std::string& targetType,const std::string& filename,ll filesize,const std::string& filepath);//保存文件请求
       bool updateFileStatus(const std::string& fromname,const std::string& toname,const std::string& filename,int status);
+      bool updateFileStatusById(int fileid,int status);
       std::string getFileName(const std::string& fromname,const std::string& toname);
       std::string getFilePath(int fileid);
       bool checkFileRequest(const std::string& fromname,const std::string& toname,const std::string& filename);
@@ -26,7 +27,8 @@ class FileModel{
     long long getReceivedSize(int fileid,const std::string& receiver);
     std::vector<std::string> getFileReceivers(int fileid);
     bool checkAllReceiverFinish(int fileid);
-    std::vector<std::string> getUnfinishedFiles(const std::string& username);
+      std::vector<std::string> getUnfinishedFiles(const std::string& username);
+      std::vector<std::string> getUnfinishedSendFiles(const std::string& username);
     int getUnfinishedFileId(const std::string& fromname,const std::string& toname,const std::string& filename);
     bool getUnfinishedFileInfo(const std::string& receiver,const std::string& filename,std::string& fromname,int& fileid,long long& filesize);
 };

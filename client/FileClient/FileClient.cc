@@ -7,6 +7,7 @@
 #include <unistd.h>
 #include <thread>
 #include <filesystem>
+#include <utility>
 #include "../../netlib/base/SocketUtil/SocketUtil.h"
 #include <iostream>
 #include "../../utils/MD5/MD5.h"
@@ -17,7 +18,7 @@
 class TcpConnection;
 using json=nlohmann::json;
 using namespace std;
-#define FILE_BLOCK_SIZE (512*1024)
+#define FILE_BLOCK_SIZE (128*1024)
 namespace {
 string makeSendKey(const string& targetType,const string& target,const string& filename){
     return targetType + "_" + target + "_" + filename;
@@ -25,10 +26,22 @@ string makeSendKey(const string& targetType,const string& target,const string& f
 }
 //发送方->服务器
 void FileClient::sendFile(int fd,int fileid,const string& filepath,const string& filename,const string& target,const string& targetType,const string& groupname,long long offset){
-
     string sender=username_;
+    {
+        lock_guard<mutex> lock(mutex_);
+        if(sendingFiles_[fileid]) return;
+        sendingFiles_[fileid]=true;
+    }
     
-    thread([fd,fileid,filepath,filename,target,targetType,groupname,offset,sender](){
+    thread([this,fd,fileid,filepath,filename,target,targetType,groupname,offset,sender](){
+      struct SendGuard{
+        FileClient* client;
+        int fileid;
+        ~SendGuard(){
+            lock_guard<mutex> lock(client->mutex_);
+            client->sendingFiles_[fileid]=false;
+        }
+      } guard{this,fileid};
       try{
         int filefd =open(filepath.c_str(),O_RDONLY);
         if(filefd < 0){
@@ -174,27 +187,104 @@ PendingFile FileClient::getPendingFile(const string& sender,const string& filena
 
 void FileClient::receiveFile(const FilePacket& packet,int fd){
     json js=packet.info;
+    if(!js.contains("fileid") || !js.contains("fromname") ||
+       !js.contains("filename") || !js.contains("offset") ||
+       !js.contains("filesize")){
+        cout<<"接收文件数据包参数缺失"<<endl;
+        return;
+    }
 
     int fileid=js["fileid"];
     string fromname=js["fromname"];
     string filename=js["filename"];
     long long offset=js["offset"];
+    long long filesize=js["filesize"];
+
+    if(fileid<0 || offset<0 || filesize<0 ||
+       offset>filesize || packet.data.size()>static_cast<size_t>(filesize-offset)){
+        cout<<"接收文件数据包无效,fileid="<<fileid<<endl;
+        return;
+    }
 
     string username=getUsername();
     string dir=FILE_ROOT+username+"/"+to_string(fileid)+"/";
     filesystem::create_directories(dir);
     string filepath=dir+fromname+"_"+filename;
+    string stateKey=to_string(fileid)+"_"+filepath;
 
-    int filefd=open(filepath.c_str(),O_WRONLY|O_CREAT,0644);
-    if(filefd<0){
-        cout<<"open receive file failed"<<endl;
-        return;
-    }
-    ssize_t ret=pwrite(filefd,packet.data.data(),packet.data.size(),offset);
-    close(filefd);
-    if(ret!=(ssize_t)packet.data.size()){
-        cout<<"pwrite failed"<<endl;
-        return;
+    shared_ptr<ReceiveState> state;
+    bool startWorker=false;
+    {
+        lock_guard<mutex> lock(mutex_);
+        auto it=receiveStates_.find(stateKey);
+        if(it==receiveStates_.end()){
+            state=make_shared<ReceiveState>();
+            state->fileid=fileid;
+            state->filepath=filepath;
+            state->filesize=filesize;
+            state->fd=fd;
+            receiveStates_[stateKey]=state;
+        }else{
+            state=it->second;
+            state->fd=fd;
+        }
+        if(!state->workerStarted){
+            state->workerStarted=true;
+            startWorker=true;
+        }
     }
 
+    if(startWorker){
+        thread([state](){
+            int filefd=open(state->filepath.c_str(),O_WRONLY|O_CREAT,0644);
+            if(filefd<0){
+                cout<<"打开接收文件失败:"<<state->filepath<<endl;
+                return;
+            }
+            while(true){
+                ReceiveChunk chunk;
+                {
+                    unique_lock<mutex> lock(state->mutex);
+                    state->condition.wait(lock,[state](){
+                        return !state->chunks.empty();
+                    });
+                    chunk=move(state->chunks.front());
+                    state->queuedBytes-=chunk.data.size();
+                    state->chunks.pop_front();
+                }
+                state->condition.notify_all();
+                ssize_t ret=pwrite(filefd,chunk.data.data(),chunk.data.size(),chunk.offset);
+                if(ret!=(ssize_t)chunk.data.size()){
+                    cout<<"写入接收文件失败:"<<state->filepath<<endl;
+                    continue;
+                }
+                json ack;
+                ack["msgid"]=FILE_BLOCK_ACK;
+                ack["fileid"]=state->fileid;
+                ack["offset"]=chunk.offset;
+                ack["size"]=chunk.data.size();
+                ack["filesize"]=state->filesize;
+                string ackData=MessageCodec::encode(ack.dump());
+                int ackFd=state->fd;
+                if(ackFd>=0 && !SocketUtil::sendAll(ackFd,ackData)){
+                    cout<<"发送文件进度失败"<<endl;
+                }
+            }
+            close(filefd);
+        }).detach();
+    }
+
+    if(packet.data.empty()) return;
+    {
+        lock_guard<mutex> lock(state->mutex);
+        state->chunks.push_back(ReceiveChunk{offset,packet.data});
+        state->queuedBytes+=packet.data.size();
+    }
+    state->condition.notify_one();
+}
+void FileClient::connectionClosed(int fd){
+    lock_guard<mutex> lock(mutex_);
+    for(auto& item:receiveStates_){
+        if(item.second->fd==fd) item.second->fd=-1;
+    }
 }

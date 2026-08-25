@@ -212,6 +212,20 @@ json LoginService::login(const json& js,TcpConnection* conn){
                 LOG_ERROR<<"错误未完成文件数据:"<<file;
             }
         }
+        vector<string> sendFiles=fileModel.getUnfinishedSendFiles(username);
+        for(auto& file:sendFiles){
+            try{
+                json fileInfo=json::parse(file);
+                string receiver=fileInfo.value("receiver","");
+                if(receiver.empty() || !OnlineUserManager::instance().getConnection(receiver)) continue;
+                fileInfo["msgid"]=FILE_RESUME_SEND;
+                fileInfo["sender"]=username;
+                fileInfo["targetType"]="user";
+                conn->send(fileInfo.dump());
+            }catch(const exception& e){
+                LOG_ERROR<<"鍙戦€佹柟鏂囦欢鎭㈠閫氱煡澶辫触:"<<e.what();
+            }
+        }
     }else{
         LOG_ERROR<<"用户登录失败，用户名:"<<username;
         response["msgid"]=LOGIN_ACK;

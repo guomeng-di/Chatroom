@@ -60,6 +60,12 @@ bool FileModel::updateFileStatus(const string& fromname,const string& toname,con
     }
     return true;
 }
+bool FileModel::updateFileStatusById(int fileid,int status){
+    MySQLManager manager;
+    if(!manager.connect()) return false;
+    string sql="update file_info set status="+to_string(status)+" where id="+to_string(fileid);
+    return manager.execute(sql);
+}
 string FileModel::getFileName(const string& fromname,const string& toname){
     MySQLManager mysql;
     if(!mysql.connect()){
@@ -420,6 +426,30 @@ vector<string> FileModel::getUnfinishedFiles(const string& username)
 
 
 
+
+vector<string> FileModel::getUnfinishedSendFiles(const string& username){
+    vector<string> files;
+    MySQLManager mysql;
+    if(!mysql.connect()) return files;
+    string sql="select f.id,f.filename,f.filepath,f.filesize,f.toname,coalesce(r.received_size,0) "
+               "from file_info f left join file_receiver r on f.id=r.fileid "
+               "where f.fromname='"+username+"' and f.targetType='user' and f.status=1";
+    MYSQL_RES* res=mysql.query(sql);
+    if(res==nullptr) return files;
+    MYSQL_ROW row;
+    while((row=mysql_fetch_row(res))){
+        json js;
+        js["fileid"]=atoi(row[0]);
+        js["filename"]=row[1]?row[1]:"";
+        js["filepath"]=row[2]?row[2]:"";
+        js["filesize"]=atoll(row[3]);
+        js["receiver"]=row[4]?row[4]:"";
+        js["received_size"]=atoll(row[5]);
+        files.push_back(js.dump());
+    }
+    mysql_free_result(res);
+    return files;
+}
 
 int FileModel::getUnfinishedFileId(
     const string& fromname,

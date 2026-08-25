@@ -3,6 +3,10 @@
 #include <map>
 #include <mutex>
 #include <vector>
+#include <deque>
+#include <condition_variable>
+#include <memory>
+#include <atomic>
 #include "../../protocol/MessageCodec/MessageCodec.h"
 struct PendingFile{
     std::string sender;
@@ -32,7 +36,25 @@ public:
 
     //接收文件
     void receiveFile(const FilePacket& packet,int fd);
+    void connectionClosed(int fd);
 private:
+
+    struct ReceiveChunk{
+        long long offset=0;
+        std::string data;
+    };
+
+    struct ReceiveState{
+        int fileid=-1;
+        std::string filepath;
+        long long filesize=0;
+        std::atomic<int> fd{-1};
+        std::deque<ReceiveChunk> chunks;
+        size_t queuedBytes=0;
+        bool workerStarted=false;
+        std::mutex mutex;
+        std::condition_variable condition;
+    };
 
     FileClient(){}
 
@@ -42,6 +64,8 @@ private:
 
     std::map<std::string,PendingFile> pendingFiles_;
     std::map<std::string,std::string> sendFilePaths_;
+    std::map<int,bool> sendingFiles_;
+    std::map<std::string,std::shared_ptr<ReceiveState>> receiveStates_;
 
 
     std::mutex mutex_;

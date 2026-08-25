@@ -20,11 +20,6 @@
 
 
 using namespace std;
-namespace {
-const long long FILE_PROGRESS_INTERVAL=8LL*1024*1024;
-mutex fileProgressMutex;
-unordered_map<string,long long> fileProgress;
-}
 json FileService::sendFileRequest(const json& js,TcpConnection* conn){
     json res;
     res["msgid"] = SEND_FILE_REQUEST_ACK;
@@ -432,6 +427,12 @@ void FileService::receiveFileData(const FilePacket& packet,TcpConnection* conn){
     }
 
     long long filesize=js["filesize"];
+    long long offset=js["offset"];
+    if(fileid<0 || filesize<0 || offset<0 || offset>filesize ||
+       packet.data.size()>static_cast<size_t>(filesize-offset)){
+        LOG_ERROR << "鏂囦欢鍒嗙墖鍋忕Щ鎴栧ぇ灏忓紓甯?fileid=" << fileid;
+        return;
+    }
 
     string receiver;
     if(targetType=="user"){
@@ -457,24 +458,6 @@ void FileService::receiveFileData(const FilePacket& packet,TcpConnection* conn){
     string data =MessageCodec::encodeBinary(packet.msgid,packet.info,packet.data);
 
     if(target->sendBinary(data)){
-        long long asyncOffset =js["offset"];
-        long long asyncSize =asyncOffset + packet.data.size();
-        string progressKey=to_string(fileid)+"_"+receiver;
-        bool updateProgress=false;
-        {
-            lock_guard<mutex> lock(fileProgressMutex);
-            long long& lastSize=fileProgress[progressKey];
-            if(asyncSize>=filesize || asyncSize-lastSize>=FILE_PROGRESS_INTERVAL){
-                lastSize=asyncSize;
-                updateProgress=true;
-            }
-        }
-        if(updateProgress){
-            TaskThreadPool::instance().enqueue([fileid,receiver,asyncSize](){
-                FileModel model;
-                model.updateReceivedSize(fileid,receiver,asyncSize);
-            });
-        }
         return;
     }else{
         LOG_ERROR << "发送文件数据失败,fileid=" << fileid<< ",接收者=" << receiver;
@@ -645,4 +628,25 @@ void FileService::updateFileOffset(const json& js,TcpConnection* conn){
     }
     int fileid=js["fileid"];
     long long offset=js["offset"];
+    if(!js.contains("size")) return;
+    long long size=js["size"];
+    if(fileid<0 || offset<0 || size<0) return;
+    long long filesize=js.contains("filesize") ? js["filesize"].get<long long>() : -1;
+    if(filesize<0){
+        FileModel model;
+        filesize=model.getFileSize(fileid);
+    }
+    if(filesize<0 || offset>filesize || size>filesize-offset) return;
+    long long receivedSize=offset+size;
+    string receiver=conn->getUsername();
+    TaskThreadPool::instance().enqueue([fileid,receiver,receivedSize,filesize](){
+        FileModel model;
+        if(!model.updateReceivedSize(fileid,receiver,receivedSize)) return;
+        if(receivedSize>=filesize){
+            model.updateFileReceiver(fileid,receiver,2);
+            if(model.checkAllReceiverFinish(fileid)){
+                model.updateFileStatusById(fileid,2);
+            }
+        }
+    });
 }

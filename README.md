@@ -27,7 +27,7 @@ sudo apt install libgtest-dev
 
 ### 服务器:
 ```
-cd chatroom_prac/chatroom/chatroom  
+cd chatroom_prac/chatroom/chatroom/chatroom  
 mkdir build  
 cd build  
 cmake ..  
@@ -37,6 +37,6 @@ make -j16
 
 ### 客户端:
 ```
-cd chatroom_prac/chatroom/chatroom/build  
+cd chatroom_prac/chatroom/chatroom/chatroom/build  
 ./client  
 ```

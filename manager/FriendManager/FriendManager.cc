@@ -28,6 +28,8 @@ void FriendManager::loadFriendList(const string& username)
 
     for(const auto& friendName : friends){
         friends_[username].insert(friendName);
+        friends_[friendName].insert(username);
+
     }
 }
 

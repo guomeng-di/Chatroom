@@ -145,7 +145,8 @@ void recvMessage(int fd){
         break;
     }
 }
-}  Heartbeat::stop();
+}  FileClient::instance().connectionClosed(fd);
+Heartbeat::stop();
 }
 
 void printMainMenu(){

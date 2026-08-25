@@ -283,6 +283,11 @@ void MessageDispatcher::dispatch(const json& js,TcpConnection* conn){
         }
 
 //42查询断点续传进度
+        case FILE_BLOCK_ACK:{
+            FileService::updateFileOffset(js,conn);
+            break;
+        }
+
         case FILE_RESUME_REQUEST:{
             json res = FileService::queryResumeFile(js,conn);
             conn->send(res.dump());

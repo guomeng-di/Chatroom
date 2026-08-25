@@ -16,6 +16,7 @@
 #include "../../../manager/RedisManager/RedisManager.h"
 
 #include <cstring>
+#include <utility>
 #include "../../base/Logger/Logger.h"
 using namespace std;
 TcpConnection::TcpConnection(EventLoop* loop,int fd):
@@ -159,7 +160,7 @@ void TcpConnection::send(const string& msg){
         [this,eventLoop,connectionFd,connection,msg](){
             if(!eventLoop->hasConnection(connectionFd,connection)) return;
             string data=MessageCodec::encode(msg);
-            outputBuffer_.append(data.data(),data.size());
+            outputQueue_.push_back(std::move(data));
             LOG_INFO<<"消息加入发送缓冲区 fd="<<fd_<<" size="<<data.size();
             channel_->enableWriting();
             // handleWrite();
@@ -175,7 +176,7 @@ bool TcpConnection::sendBinary(string msg){
     loop_->queueInLoop(
         [this,eventLoop,connectionFd,connection,msg=std::move(msg)](){
             if(!eventLoop->hasConnection(connectionFd,connection)) return;
-            outputBuffer_.append(msg.data(),msg.size());
+            fileOutputQueue_.push_back(std::move(msg));
             LOG_INFO<<"二进制数据加入发送缓冲区 fd="<<fd_<<" size="<<msg.size();
             channel_->enableWriting();
             //handleWrite();
@@ -239,47 +240,37 @@ int TcpConnection::fd(){
     return fd_;
 }
 void TcpConnection::handleWrite(){
-
-    while(outputBuffer_.size()>0){
-
-        size_t sendSize =
-min(
-    outputBuffer_.size(),
-    static_cast<size_t>(64*1024)
-);
-
-        ssize_t n = ::send(
-            fd_,
-            outputBuffer_.peek(),
-            sendSize,
-            MSG_NOSIGNAL
-        );
-
-        if(n>0){
-
-            outputBuffer_.retrieve(n);
-
-        }else{
-
-            if(errno==EAGAIN || errno==EWOULDBLOCK){
-                break;
+    size_t writeBudget=512*1024;
+    while(writeBudget>0){
+        if(outputFrame_.empty()){
+            if(!outputQueue_.empty()){
+                outputFrame_=std::move(outputQueue_.front());
+                outputQueue_.pop_front();
+            }else if(!fileOutputQueue_.empty()){
+                outputFrame_=std::move(fileOutputQueue_.front());
+                fileOutputQueue_.pop_front();
+            }else{
+                channel_->disableWriting();
+                return;
             }
-
-            if(errno==EINTR){
-                continue;
-            }
-
-            LOG_ERROR<<"send error "
-                     <<strerror(errno);
-
-            handleClose();
-            return;
+            outputOffset_=0;
         }
+
+        size_t sendSize=min(outputFrame_.size()-outputOffset_,static_cast<size_t>(64*1024));
+        ssize_t n=::send(fd_,outputFrame_.data()+outputOffset_,sendSize,MSG_NOSIGNAL);
+        if(n>0){
+            outputOffset_+=static_cast<size_t>(n);
+            writeBudget-=static_cast<size_t>(n);
+            if(outputOffset_==outputFrame_.size()){
+                outputFrame_.clear();
+                outputOffset_=0;
+            }
+            continue;
+        }
+        if(errno==EAGAIN || errno==EWOULDBLOCK) return;
+        if(errno==EINTR) continue;
+        LOG_ERROR<<"send error "<<strerror(errno);
+        handleClose();
+        return;
     }
-
-
-    if(outputBuffer_.size()==0){
-        channel_->disableWriting();
-    }
-
 }
