@@ -1,6 +1,7 @@
 #include "FriendRequestService.h"
 #include "../../model/FriendModel/FriendModel.h"
 #include "../../model/FriendRequestModel/FriendRequestModel.h"
+#include "../../model/UserModel/UserModel.h"
 #include "../../manager/OnlineUserManager/OnlineUserManager.h" 
 #include "../../netlib/net/TcpConnection/TcpConnection.h"
 #include "../../protocol/MsgId.h"
@@ -19,7 +20,7 @@ json FriendRequestService::sendRequest(const json& js){
     response["msgid"]=SEND_FRIEND_REQUEST_ACK;
     if(!js.contains("fromname")||!js.contains("toname")){
         LOG_ERROR<<"发送好友申请缺少参数";
-        response["errno"]=1,response["message"]="lack params";
+        response["errno"]=1,response["message"]="发送好友申请缺少参数";
         return response;
     } 
     string from=js["fromname"];
@@ -27,23 +28,29 @@ json FriendRequestService::sendRequest(const json& js){
     LOG_INFO<<from+"向"+to+"发送好友申请";
     if(from.empty()||to.empty()){
         LOG_ERROR<<"好友申请用户名为空";
-        response["errno"]=1,response["message"]="username empty";
+        response["errno"]=1,response["message"]="好友申请用户名为空";
         return response;
     }
     if(from==to){
         LOG_ERROR<<"不能添加自己为好友";
-        response["errno"]=1,response["message"]="cannot add yourself";
+        response["errno"]=1,response["message"]="不能添加自己为好友";
+        return response;
+    }
+    UserModel model;
+    if(!model.queryUserByUsername(to)){
+        response["errno"]=1;
+        response["message"]="该用户不存在";
         return response;
     }
     FriendModel friendModel;
     if(friendModel.isFriend(from,to)){
         LOG_ERROR<<from+"和"+to+"已经是好友";
         response["errno"]=1;
-        response["message"]="already friends";
+        response["message"]=from+"和"+to+"已经是好友";
         return response;
     }
-    FriendRequestModel model;
-    bool flag=model.addRequest(from,to);
+    FriendRequestModel model1;
+    bool flag=model1.addRequest(from,to);
     if(flag){
         TcpConnection* target =OnlineUserManager::instance().getConnection(to);
         if(target!=NULL){
@@ -55,11 +62,11 @@ json FriendRequestService::sendRequest(const json& js){
             LOG_INFO<<"发送好友申请通知给用户:"+to;
         }
         response["errno"]=0;
-        response["message"]="send request success";
+        response["message"]="添加好友申请成功";
     }else{
         LOG_ERROR<<"添加好友申请失败";
         response["errno"]=1;
-        response["message"]="send request fail";
+        response["message"]="添加好友申请失败";
     }
     return response;
 }
@@ -71,7 +78,7 @@ json FriendRequestService::getRequestList(const json& js){
     if(!js.contains("username")){
         LOG_ERROR<<"查询好友申请缺少用户名";
         response["errno"]=1;
-        response["message"]="lack username";
+        response["message"]="查询好友申请缺少用户名";
         return response;
     }
     string username=js["username"];
@@ -86,7 +93,7 @@ json FriendRequestService::getRequestList(const json& js){
     }
     LOG_INFO<<"查询好友申请列表成功:"+username;
     response["errno"]=0;
-    response["message"]="get request success";
+    response["message"]="查询好友申请列表成功";
     return response;
 }
 //处理好友申请(同意1/拒绝0)
@@ -97,7 +104,7 @@ json FriendRequestService::handleRequest(const json& js){
     if(!js.contains("fromname")||!js.contains("toname")||!js.contains("action")){
         LOG_ERROR<<"处理好友申请缺少参数";
         res["errno"]=1;
-        res["message"]="lack params";
+        res["message"]="处理好友申请缺少参数";
         return res;
     }
     string from=js["fromname"];
@@ -106,19 +113,19 @@ json FriendRequestService::handleRequest(const json& js){
     if(from.empty()||to.empty()){
         LOG_ERROR<<"处理好友申请用户名为空";
         res["errno"]=1;
-        res["message"]="username cannot empty";
+        res["message"]="处理好友申请用户名为空";
         return res;
     }
     if(from==to){
         LOG_ERROR<<"不能处理自己的好友申请";
         res["errno"]=1;
-        res["message"]="cannot handle yourself";
+        res["message"]="不能处理自己的好友申请";
         return res;
     }
     if(action!=0&&action!=1){
         LOG_ERROR<<"好友申请处理动作无效";
         res["errno"]=1;
-        res["message"]="invalid action";
+        res["message"]="好友申请处理动作无效";
         return res;
     }
     FriendRequestModel requestModel;
@@ -133,7 +140,7 @@ json FriendRequestService::handleRequest(const json& js){
     if(!exist){
         LOG_ERROR<<"好友申请不存在";
         res["errno"]=1;
-        res["message"]="friend request not exist";
+        res["message"]="好友申请不存在";
         return res;
     }
     if(action==1){
@@ -141,13 +148,13 @@ json FriendRequestService::handleRequest(const json& js){
         if(friendModel.isFriend(from,to)||friendModel.isFriend(to,from)){
             LOG_ERROR<<"双方已经是好友";
             res["errno"]=1;
-            res["message"]="already friends";
+            res["message"]="双方已经是好友";
             return res;
         }
         if(!friendModel.addFriend(from,to)){
             LOG_ERROR<<"添加好友关系失败";
             res["errno"]=1;
-            res["message"]="add friend failed";
+            res["message"]="添加好友关系失败";
             return res;
         }
         if(!requestModel.removeRequest(from,to)){
@@ -163,16 +170,16 @@ json FriendRequestService::handleRequest(const json& js){
         }
         LOG_INFO<<from+"和"+to+"成为好友";
         res["errno"]=0;
-        res["message"]="accept friend success";
+        res["message"]=from+"和"+to+"成为好友";
     }else{
         if(requestModel.removeRequest(from,to)){
             LOG_INFO<<to+"拒绝了"+from+"的好友申请";
             res["errno"]=0;
-            res["message"]="reject friend success";
+            res["message"]=to+"拒绝了"+from+"的好友申请";
         }else{
             LOG_ERROR<<"拒绝好友申请失败";
             res["errno"]=1;
-            res["message"]="reject friend failed";
+            res["message"]="拒绝好友申请失败";
         }
     }
     return res;

@@ -3,6 +3,7 @@
 #include <unistd.h>
 #include <arpa/inet.h>
 #include <sys/socket.h>
+#include <sys/select.h>
 #include <termios.h>
 #include <unistd.h>
 #include <sys/select.h>
@@ -12,6 +13,7 @@
 #include <limits>
 #include <cerrno>
 #include <thread>
+#include <atomic>
 #include "../../../src/config.h"
 #include "../../../netlib/base/Logger/Logger.h"
 #include "../../ClientMessageHandler/ClientMessageHandler.h"
@@ -26,15 +28,15 @@
 #include "../AccountMenu/AccountMenu.h"
 #include "../../FileClient/FileClient.h"
 #include "../Color.h"
+#include "../../TerminalInput/TerminalInput.h"
 #include <nlohmann/json.hpp>
 #define ACCOUNT_LOGIN_ELSEWHERE 601
 using namespace std;
 using json=nlohmann::json;
-
+std::atomic<bool> connectionAlive{true};
 string username;
 Buffer clientBuffer;
 string currentSendFile;
-
 bool sendAllData(int fd,const string& data){
     return SocketUtil::sendAll(fd,data);
 }
@@ -47,19 +49,37 @@ bool getNextMessage(int fd,string& msg){
             msg=clientBuffer.retrieveMessage();
             return true;
         }
-        char buf[1024*1024];
-        ssize_t len=recv(fd,buf,sizeof(buf),0);
-        if(len>0){
-            clientBuffer.append(buf,static_cast<size_t>(len));
-            continue;
-        }
-        if(len==0){
-            // Logger::instance().error("server closed connection");
+        fd_set readfds;
+        FD_ZERO(&readfds);
+        FD_SET(fd,&readfds);
+        int ret=select(fd+1,&readfds,nullptr,nullptr,nullptr);
+        if(ret<0){
+            if(errno==EINTR){
+                continue;
+            }
             return false;
         }
-        if(errno==EINTR) continue;
-        // Logger::instance().error("recv failed");
-        return false;
+        if(!FD_ISSET(fd,&readfds)){
+            continue;
+        }
+        char buf[1024*1024];
+        while(true){
+            ssize_t len=recv(fd,buf,sizeof(buf),0);
+            if(len>0){
+                clientBuffer.append(buf,static_cast<size_t>(len));
+                break;
+            }
+            if(len==0){
+                return false;
+            }
+            if(errno==EINTR){
+                continue;
+            }
+            if(errno==EAGAIN||errno==EWOULDBLOCK){
+                break;
+            }
+            return false;
+        }
     }
 }
 
@@ -96,57 +116,71 @@ void recvMessage(int fd){
         fd_set readfds;
         FD_ZERO(&readfds);
         FD_SET(fd,&readfds);
-        FD_SET(timerFd,&readfds);
-        int maxfd=max(fd,timerFd);
-        timeval timeout;
-        timeout.tv_sec=1;
-        timeout.tv_usec=0;
-        int ret=select(maxfd+1,&readfds,nullptr,nullptr,&timeout);
-
+        if(timerFd>=0){
+            FD_SET(timerFd,&readfds);
+        }
+        int maxfd=fd;
+        if(timerFd>maxfd){
+            maxfd=timerFd;
+        }
+        int ret=select(maxfd+1,&readfds,nullptr,nullptr,nullptr);
         if(ret<0){
-            if(errno==EINTR) continue;
+            if(errno==EINTR){
+                continue;
+            }
+            cout<<endl<<COLOR_RED<<"select失败:"<<strerror(errno)<<COLOR_RESET<<endl;
             break;
         }
-        if(FD_ISSET(timerFd,&readfds)){
+        if(timerFd>=0&&FD_ISSET(timerFd,&readfds)){
             Heartbeat::check(fd);
         }
-        if(FD_ISSET(fd,&readfds)){
-        int len=recv(fd,buf,sizeof(buf),0);
-        if(len>0){
-            clientBuffer.append(buf,len);
-            while(clientBuffer.hasMessage()){
-                string msg=clientBuffer.retrieveMessage();
-                int msgid=MessageCodec::getMsgId(msg);
-                try{
-                    if(msgid==FILE_DATA_MSG){
-                        FilePacket packet=MessageCodec::decodeBinary(msg);
-                        FileClient::instance().receiveFile(packet,fd);
-                    }else{
-                        if(msg.size()<4){
-                            // Logger::instance().error("invalid message size");
-                            continue;
-                        }
-                        string jsonStr(msg.data()+4,msg.size()-4);
-                        json js=json::parse(jsonStr);
-                        ClientMessageHandler::handle(js,fd);
-                    }
-                }catch(const exception& e){
-                    // Logger::instance().error(string("message error: ")+e.what());
-                }
-            }
+        if(!FD_ISSET(fd,&readfds)){
+            continue;
         }
-        
-        else if(len==0){
-            cout<<endl<<COLOR_RED<<"server close"<<COLOR_RESET<<endl;
-            break;
-        }else{
-        if(errno==EINTR) continue;
-        // Logger::instance().error("recv failed");
-        break;
+        while(true){
+            int len=recv(fd,buf,sizeof(buf),0);
+            if(len>0){
+                clientBuffer.append(buf,static_cast<size_t>(len));
+                while(clientBuffer.hasMessage()){
+                    string msg=clientBuffer.retrieveMessage();
+                    try{
+                        int msgid=MessageCodec::getMsgId(msg);
+                        if(msgid==FILE_DATA_MSG){
+                            FilePacket packet=MessageCodec::decodeBinary(msg);
+                            FileClient::instance().receiveFile(packet,fd);
+                        }else{
+                            if(msg.size()<4){
+                                continue;
+                            }
+                            string jsonStr(msg.data()+4,msg.size()-4);
+                            json js=json::parse(jsonStr);
+                            ClientMessageHandler::handle(js,fd);
+                        }
+                    }catch(const exception& e){
+                        LOG_ERROR<<"message process failed:"<<e.what();
+                    }
+                }
+                continue;
+            }
+            if(len==0){
+                cout<<endl<<COLOR_RED<<"服务器关闭"<<COLOR_RESET<<endl;
+                connectionAlive=0;
+                goto RECV_EXIT;
+            }
+            if(errno==EINTR){
+                continue;
+            }
+            if(errno==EAGAIN||errno==EWOULDBLOCK){
+                break;
+            }
+            cout<<endl<<COLOR_RED<<"服务器连接异常:"<<strerror(errno)<<COLOR_RESET<<endl;
+            connectionAlive=0;
+            goto RECV_EXIT;
+        }
     }
-}
-}  FileClient::instance().connectionClosed(fd);
-Heartbeat::stop();
+RECV_EXIT:
+    FileClient::instance().connectionClosed(fd);
+    Heartbeat::stop();
 }
 
 void printMainMenu(){
@@ -163,6 +197,7 @@ void printMainMenu(){
 ==============================
 )";
     cout<<COLOR_RESET;
+    cout.flush();
 }
 string getPassword(){
     termios oldt,newt;
@@ -185,38 +220,39 @@ string getPassword(){
 }
 bool login(int fd){
     cout<<"登录:"<<endl;
-    cout<<"username:"; cin>>username;
+    cout<<"用户名:"<<endl; 
+    username=TerminalInput::getInput();
     //大写->小写
     transform(username.begin(),username.end(),username.begin(),
     [](unsigned char c){
         return tolower(c);
     });
     string password;
-    cout<<"password:"; password=getPassword();
+    cout<<"密码:"; password=getPassword();
     json loginMsg;
     loginMsg["msgid"]=LOGIN_MSG;
     loginMsg["username"]=username;
     loginMsg["password"]=password;
     string data=MessageCodec::encode(loginMsg.dump());
     if(!sendAllData(fd,data)){
-        cout<<"send login message fail"<<endl;
+        cout<<"发送登录请求失败"<<endl;
         return false;
     }
     json response;
     if(!waitForJsonResponse(fd,LOGIN_ACK,response)){
-        cout<<endl<<"server close"<<endl;
+        cout<<endl<<"服务器关闭"<<endl;
         return false;
     }
     if(!response.contains("errno")){
-        cout<<endl<<"invalid login response"<<endl;
+        cout<<endl<<"登录产生错误"<<endl;
         return false;
     }
     if(response["errno"]==0){
-        cout<<endl<<"login success"<<endl;
+        cout<<endl<<"登录成功"<<endl;
         FileClient::instance().setUsername(username);
         return true;
     }
-    cout<<endl<<"login fail";
+    cout<<endl<<"登录失败";
     if(response.contains("message")) cout<<": "<<response["message"];
     cout<<endl;
     return false;
@@ -224,10 +260,8 @@ bool login(int fd){
 
 bool loginByVerifyCode(int fd){
     cout<<"登录（验证码）"<<endl;
-    //cout<<"用户名:"<<endl;
-    //string username;
-    //cin>>username;
-    cout<<"邮箱:";
+
+    cout<<"邮箱:"<<endl;
 
     //cin.ignore(numeric_limits<streamsize>::max(),'\n');
 
@@ -237,7 +271,7 @@ bool loginByVerifyCode(int fd){
         cout<<"验证码发送失败"<<endl;
         return false;
     }
-    cout<<"验证码:";
+    cout<<"验证码:"<<endl;
     string code;
     cin>>code;
     json loginMsg;
@@ -306,17 +340,18 @@ bool sendVerifyCode(int fd,const string& email){
 
 bool registerUser(int fd){
     cout<<"注册"<<endl;
-    cout<<"username:"; cin>>username;
+    cout<<"用户名:"<<endl; 
+    username=TerminalInput::getInput();
     string email;
-    cout<<"your email:"; cin>>email;
+    cout<<"你的邮箱:"; cin>>email;
     if(!sendVerifyCode(fd,email)){
         cout<<"验证码发送失败"<<endl;
         return false;
     }
     string code;
-    cout<<"verify code:"; cin>>code;
+    cout<<"验证码:"; cin>>code;
     string password;
-    cout<<"password:"; password=getPassword();
+    cout<<"密码:"; password=getPassword();
     json regMsg;
     regMsg["msgid"]=REGISTER_MSG;
     regMsg["username"]=username;
@@ -325,31 +360,31 @@ bool registerUser(int fd){
     regMsg["password"]=password;
     string data=MessageCodec::encode(regMsg.dump());
     if(!sendAllData(fd,data)){
-        cout<<"send register message failed"<<endl;
+        cout<<"发送注册请求失败"<<endl;
         return false;
     }
     json response;
     if(!waitForJsonResponse(fd,REGISTER_ACK,response)){
-        cout<<endl<<"server close"<<endl;
+        cout<<endl<<"服务器关闭"<<endl;
         return false;
     }
     if(response["errno"]==0){
-        cout<<"register success"<<endl;
+        cout<<"注册成功"<<endl;
         return true;
     }
-    cout<<endl<<COLOR_RED<<"register fail: "<<response["message"]<<COLOR_RESET<<endl;
+    cout<<endl<<COLOR_RED<<"注册失败: "<<response["message"]<<COLOR_RESET<<endl;
     return false;
 }
 
 bool ResetPassword(int fd){
     string email,code,password;
-    cout<<"your email:"; cin>>email;
+    cout<<"你的邮箱:"<<endl; cin>>email;
     if(!sendVerifyCode(fd,email)){
         cout<<"验证码发送失败"<<endl;
         return false;
     }
-    cout<<"your verify code:"; cin>>code;
-    cout<<"your new password:"; cin>>password;
+    cout<<"验证码:"<<endl; cin>>code;
+    cout<<"新密码:"<<endl; password=getPassword();
     json js;
     js["msgid"]=RESET_PASSWORD_MSG;
     js["email"]=email;
@@ -357,12 +392,12 @@ bool ResetPassword(int fd){
     js["password"]=password;
     string data=MessageCodec::encode(js.dump());
     if(!sendAllData(fd,data)){
-        cout<<"send reset password failed"<<endl;
+        cout<<"发送重置密码请求失败"<<endl;
         return false;
     }
     json response;
     if(!waitForJsonResponse(fd,RESET_PASSWORD_ACK,response)){
-        cout<<"server close"<<endl;
+        cout<<"服务器关闭"<<endl;
         return false;
     }
     if(response["errno"]==0){
@@ -379,22 +414,25 @@ void MainMenu::run(int fd){
         cout<<R"(
 +------------------------------------+
 |                                    |
-|             聊天室登录             |
+|             聊天室登录              |
 |                                    |
 +------------------------------------+
-|        1. 登录（密码）             |
-|        2. 登录（验证码）           |
+|        1. 登录（密码）              |
+|        2. 登录（验证码）            |
 |        3. 注册                     |
 |        4. 重置密码                 |
 |        0. 退出登录                 |
 +------------------------------------+
 )";
         cout<<COLOR_RESET;
+        cout.flush();
+        string choiceStr;
+        choiceStr=TerminalInput::getInput();
         int choice;
-        if(!(cin>>choice)){
-            cin.clear();
-            cin.ignore(numeric_limits<streamsize>::max(),'\n');
-            cout<<endl<<"输入错误，请输入数字"<<endl;
+        try{
+            choice=stoi(choiceStr);
+        }catch(...){
+            cout<<"输入错误，请输入数字"<<endl;
             continue;
         }
         if(choice==1){
@@ -419,45 +457,38 @@ void MainMenu::run(int fd){
             cout<<COLOR_RESET;
         }
     }
-
     if(!Heartbeat::start()){
-        // Logger::instance().error("heartbeat start failed");
         close(fd);
         return;
     }
-
+    connectionAlive=true;
     thread t(recvMessage,fd);
-    t.detach();
-
-    cout<<"heartbeat timer started, interval=5s"<<endl;
+    cout<<"开始心跳检测,间隔时长为 5秒"<<endl;
     printMainMenu();
-
-    while(true){
+    while(connectionAlive){
         cout.flush();
         fd_set readfds;
         FD_ZERO(&readfds);
         FD_SET(STDIN_FILENO,&readfds);
-
-        int heartbeatFd=Heartbeat::getTimerFd();
-        if(heartbeatFd>=0) FD_SET(heartbeatFd,&readfds);
-
-        int maxfd=STDIN_FILENO;
-        if(heartbeatFd>maxfd) maxfd=heartbeatFd;
-
-        int selectRet=select(maxfd+1,&readfds,nullptr,nullptr,nullptr);
-
+        timeval timeout;
+        timeout.tv_sec=1;
+        timeout.tv_usec=0;
+        int selectRet=select(STDIN_FILENO+1,&readfds,nullptr,nullptr,&timeout);
         if(selectRet<0){
-            if(errno==EINTR) continue;
-            // Logger::instance().error("select");
+            if(errno==EINTR){
+                continue;
+            }
             break;
         }
-
-        if(heartbeatFd>=0&&FD_ISSET(heartbeatFd,&readfds)){
-            Heartbeat::check(fd);
+        if(!connectionAlive){
+            break;
         }
-
-        if(!FD_ISSET(STDIN_FILENO,&readfds)) continue;
-
+        if(selectRet==0){
+            continue;
+        }
+        if(!FD_ISSET(STDIN_FILENO,&readfds)){
+            continue;
+        }
         int menu;
         if(!(cin>>menu)){
             cin.clear();
@@ -465,7 +496,6 @@ void MainMenu::run(int fd){
             cout<<"输入错误，请输入数字"<<endl;
             continue;
         }
-
         switch(menu){
             case 1:
                 FriendMenu::run(fd,username);
@@ -483,8 +513,11 @@ void MainMenu::run(int fd){
                 cout<<COLOR_RED;
                 cout<<endl<<"退出客户端"<<endl;
                 cout<<COLOR_RESET;
+                connectionAlive=false;
                 Heartbeat::stop();
+                shutdown(fd,SHUT_RDWR);
                 close(fd);
+                if(t.joinable()) t.join();
                 return;
             default:
                 cout<<COLOR_YELLOW;
@@ -492,9 +525,15 @@ void MainMenu::run(int fd){
                 cout<<COLOR_RESET;
                 break;
         }
-        printMainMenu();
+        if(connectionAlive){
+            printMainMenu();
+        }
     }
-
+    connectionAlive=false;
     Heartbeat::stop();
+    shutdown(fd,SHUT_RDWR);
     close(fd);
+    if(t.joinable()){
+        t.join();
+    }
 }

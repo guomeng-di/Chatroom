@@ -16,7 +16,7 @@ json GroupChatService::groupChat(const json& js,TcpConnection* conn){
     response["msgid"]=GROUP_CHAT_ACK;
     if(!js.contains("groupname")||!js.contains("message")){
         LOG_ERROR<<"群聊请求缺少参数";
-        response["errno"]=1,response["message"]="lack params";
+        response["errno"]=1,response["message"]="群聊请求缺少参数";
         return response;
     }
     string groupName=js["groupname"];
@@ -24,25 +24,25 @@ json GroupChatService::groupChat(const json& js,TcpConnection* conn){
     string message=js["message"];
     if(groupName.empty()||username.empty()||message.empty()){
         LOG_ERROR<<"群聊参数为空";
-        response["errno"]=1,response["message"]="params cannot empty";
+        response["errno"]=1,response["message"]="输入不可为空";
         return response;
     }
     GroupModel groupModel;
     if(!groupModel.groupExist(groupName)){
         LOG_ERROR<<username<<"发送群消息失败，群不存在:"<<groupName;
-        response["errno"]=1,response["message"]="group not exist";
+        response["errno"]=1,response["message"]="发送群消息失败，群不存在";
         return response;
     }
     if(!groupModel.isMember(groupName,username)){
         LOG_ERROR<<username<<"不是群成员，无法发送群消息:"<<groupName;
-        response["errno"]=1,response["message"]="not group member";
+        response["errno"]=1,response["message"]="不是群成员，无法发送群消息";
         return response;
     }
     unordered_set<string> members=groupModel.getMembers(groupName);
     if(members.empty()){
         LOG_ERROR<<"获取群成员失败，无法发送群聊消息";
         response["errno"]=1;
-        response["message"]="get group members fail";
+        response["message"]="获取群成员失败，无法发送群聊消息";
         return response;
     }
     json sendMsg;

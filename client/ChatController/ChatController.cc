@@ -3,6 +3,8 @@
 #include "../../protocol/MessageCodec/MessageCodec.h"
 #include "../../netlib/base/SocketUtil/SocketUtil.h"
 #include "../menu/Color.h"
+#include "../../model/FriendModel/FriendModel.h"
+#include "../../model/GroupModel/GroupModel.h"
 #include "../Heartbeat/Heartbeat.h"
 #include <iostream>
 #include <unistd.h>
@@ -14,269 +16,188 @@
 #include <iconv.h>
 #include <cerrno>
 #include <deque>
-
-using namespace std;
+#include <string>
+#include <deque>
+#include <mutex>
+#include <unistd.h>
+#include <termios.h>
+#include <fcntl.h>
+#include <termios.h>
+#include <unistd.h>
+#include <cstring>
+#include "ChatInputReader/ChatInputReader.h"
+#include "ChatInputMode/ChatInputMode.h"
 using json=nlohmann::json;
-
-class ChatInputMode{
-public:
-    ChatInputMode():active_(false){
-        if(tcgetattr(STDIN_FILENO,&old_)==0){
-            termios current=old_;
-            current.c_lflag&=~ICANON;
-            current.c_cc[VMIN]=1;
-            current.c_cc[VTIME]=0;
-            if(tcsetattr(STDIN_FILENO,TCSANOW,&current)==0) active_=true;
+using namespace std;
+static bool isValidUTF8(const string& text){
+    const unsigned char* data=(const unsigned char*)text.data();
+    size_t len=text.size();
+    size_t i=0;
+    while(i<len){
+        unsigned char c=data[i];
+        if(c<=0x7F)
+        {
+            i++;
+            continue;
         }
-        const char* enablePaste="\033[?2004h";
-        write(STDOUT_FILENO,enablePaste,8);
-    }
-    ~ChatInputMode(){
-        const char* disablePaste="\033[?2004l";
-        write(STDOUT_FILENO,disablePaste,8);
-        if(active_) tcsetattr(STDIN_FILENO,TCSANOW,&old_);
-    }
-private:
-    termios old_{};
-    bool active_;
-};
-
-class ChatInputReader{
-public:
-    explicit ChatInputReader(bool splitMode):splitMode_(splitMode),inPaste_(false),pendingCr_(false){}
-
-    bool hasMessage() const{
-        return !messages_.empty();
-    }
-
-    void setSplitMode(bool splitMode){
-        splitMode_=splitMode;
-    }
-
-    bool isSplitMode() const{
-        return splitMode_;
-    }
-
-    bool readMessage(string& message){
-        if(messages_.empty()){
-            char buf[4096];
-            ssize_t len=read(STDIN_FILENO,buf,sizeof(buf));
-            if(len<=0) return false;
-            pending_.append(buf,static_cast<size_t>(len));
-            parse();
+        int bytes=0;
+        if((c&0xE0)==0xC0)
+        {
+            bytes=2;
         }
-        if(messages_.empty()) return false;
-        message=std::move(messages_.front());
-        messages_.pop_front();
-        return true;
-    }
-
-private:
-    void finishLine(){
-        messages_.push_back(std::move(current_));
-        current_.clear();
-    }
-
-    void appendNewline(){
-        if(inPaste_&&!splitMode_) current_.push_back('\n');
-        else finishLine();
-    }
-
-    void appendCharacter(char ch){
-        if(ch=='\r'){
-            appendNewline();
-            pendingCr_=true;
-        }else if(ch=='\n'){
-            if(pendingCr_){
-                pendingCr_=false;
-                return;
+        else if((c&0xF0)==0xE0)
+        {
+            bytes=3;
+        }
+        else if((c&0xF8)==0xF0)
+        {
+            bytes=4;
+        }
+        else
+        {
+            return false;
+        }
+        if(i+bytes>len)
+        {
+            return false;
+        }
+        for(int j=1;j<bytes;j++)
+        {
+            if((data[i+j]&0xC0)!=0x80)
+            {
+                return false;
             }
-            appendNewline();
-        }else{
-            pendingCr_=false;
-            current_.push_back(ch);
         }
+        i+=bytes;
     }
-
-    bool markerReady(const string& marker) const{
-        return pending_.size()>=marker.size()&&pending_.compare(0,marker.size(),marker)==0;
-    }
-
-    bool markerIncomplete(const string& marker) const{
-        return pending_.size()<marker.size()&&marker.compare(0,pending_.size(),pending_)==0;
-    }
-
-    void parse(){
-        const string pasteBegin="\033[200~";
-        const string pasteEnd="\033[201~";
-        while(!pending_.empty()){
-            const string& marker=inPaste_?pasteEnd:pasteBegin;
-            if(markerReady(marker)){
-                pendingCr_=false;
-                pending_.erase(0,marker.size());
-                if(inPaste_){
-                    inPaste_=false;
-                    if(splitMode_&&!current_.empty()) finishLine();
-                }else{
-                    inPaste_=true;
-                }
-                continue;
-            }
-            if(markerIncomplete(marker)) return;
-            char ch=pending_.front();
-            pending_.erase(0,1);
-            appendCharacter(ch);
-        }
-    }
-
-    bool splitMode_;
-    bool inPaste_;
-    bool pendingCr_;
-    string pending_;
-    string current_;
-    deque<string> messages_;
-};
-
-bool handleModeCommand(const string& message,ChatInputReader& inputReader){
-    if(message=="/mode 1"){
-        inputReader.setSplitMode(false);
-        cout<<COLOR_GREEN<<"已切换为整体发送，粘贴文本中的换行和空行会保留"<<COLOR_RESET<<endl;
-        return true;
-    }
-    if(message=="/mode 2"){
-        inputReader.setSplitMode(true);
-        cout<<COLOR_GREEN<<"已切换为分行发送，粘贴文本会按换行拆成多条消息"<<COLOR_RESET<<endl;
-        return true;
-    }
-    if(message=="/mode"){
-        cout<<COLOR_YELLOW;
-        cout<<"当前发送方式:"<<(inputReader.isSplitMode()?"分行发送":"整体发送")<<endl;
-        cout<<"输入 /mode 1 切换为整体发送"<<endl;
-        cout<<"输入 /mode 2 切换为分行发送"<<endl;
-        cout<<COLOR_RESET;
-        return true;
-    }
-    return false;
+    return true;
 }
 
 string normalizeChatText(const string& text){
-    try{
-        json check=json{{"message",text}};
-        check.dump();
-        return text;
-    }catch(const exception&){
-        iconv_t converter=iconv_open("UTF-8","GB18030");
-        if(converter==reinterpret_cast<iconv_t>(-1)) return text;
-        size_t inputSize=text.size();
-        size_t outputSize=inputSize*3+1;
-        string result(outputSize,'\0');
-        char* inputBuffer=const_cast<char*>(text.data());
-        char* outputBuffer=result.data();
-        size_t remainingOutput=outputSize;
-        if(iconv(converter,&inputBuffer,&inputSize,&outputBuffer,&remainingOutput)==static_cast<size_t>(-1)){
-            iconv_close(converter);
-            return text;
+    if(text.empty())return text;
+    
+    string clean;
+    clean.reserve(text.size());//预分配内存
+    bool hasCR=false;
+    for(char c:text){//遍历每一个字符
+        if(c=='\r'){
+            hasCR=true;
+            continue;//windows为\r\n,linux为\n
         }
-        iconv_close(converter);
-        result.resize(outputSize-remainingOutput);
-        return result;
+        clean.push_back(c);
+    }if(clean.empty()){
+        return clean;
+    }if(!hasCR&&isValidUTF8(clean)){
+        return clean;
+    }if(isValidUTF8(clean)){
+        return clean;
     }
-}
-
-void ChatController::privateChat(int fd,const string& username){
-    string friendName;
-    cout<<"好友账号:";
-    cin>>friendName;
-    cin.ignore(numeric_limits<streamsize>::max(),'\n');
-
-    cout<<COLOR_GREEN;
-    cout<<R"(
-+--------------------------------+
-|                                |
-|            私聊模式             |
-|                                |
-+--------------------------------+
-    )";
-    cout<<"当前好友:"<<friendName<<endl;
-    cout<<"发送方式:整体发送"<<endl;
-    cout<<"输入 /mode 查看或切换发送方式"<<endl;
-    cout<<"输入 quit 返回"<<endl;
-    cout<<COLOR_RESET;
-    cout<<COLOR_GREEN;
-    // cout<<"我: ";
-    cout<<COLOR_RESET;
-
-    ChatInputMode inputMode;
-    ChatInputReader inputReader(false);
-    while(true){
-        fd_set readfds;
-        FD_ZERO(&readfds);
-        FD_SET(STDIN_FILENO,&readfds);
-
-        int heartbeatFd=Heartbeat::getTimerFd();
-        if(heartbeatFd>=0) FD_SET(heartbeatFd,&readfds);
-
-        int maxfd=STDIN_FILENO;
-        if(heartbeatFd>maxfd) maxfd=heartbeatFd;
-
-        bool pendingReady=inputReader.hasMessage();
-        int selectRet=pendingReady?1:select(maxfd+1,&readfds,nullptr,nullptr,nullptr);
-
-        if(selectRet<0){
-            if(errno==EINTR) continue;
-            cerr<<"select failed"<<endl;
-            break;
-        }
-
-        if(!pendingReady&&heartbeatFd>=0&&FD_ISSET(heartbeatFd,&readfds)){
-            Heartbeat::check(fd);
-        }
-
-        if(!pendingReady&&!FD_ISSET(STDIN_FILENO,&readfds)) continue;
-
-        string message;
-        if(!inputReader.readMessage(message)) continue;
-
-        if(message=="quit"){
-            cout<<"退出聊天"<<endl;
-            break;
-        }
-
-        if(handleModeCommand(message,inputReader)) continue;
-
-        if(message.empty()){
-            //cout<<COLOR_GREEN<<"我: "<<COLOR_RESET;
-            continue;
-        }
-
-        json js;
-        js["msgid"]=CHAT_MSG;
-        js["from"]=username;
-        js["to"]=friendName;
-        js["message"]=normalizeChatText(message);
-
-        string data=MessageCodec::encode(js.dump(-1,' ',false,json::error_handler_t::replace));
-        bool sendRet=SocketUtil::sendAll(fd,data);
-
-        if(!sendRet){
-            cout<<"发送失败"<<endl;
-            break;
-        }
-
-        //cout<<COLOR_GREEN<<"我: "<<COLOR_RESET;
+    iconv_t converter=iconv_open("UTF-8","GB18030");
+    if(converter==(iconv_t)-1){
+        return clean;
     }
-
-    cout<<COLOR_GREEN;
-    cout<<"已退出与 "<<friendName<<" 的聊天"<<endl;
-    cout<<COLOR_RESET;
+    size_t inputSize=clean.size();
+    size_t outputSize=inputSize*4+4;
+    string result(outputSize,'\0');
+    char* inputBuffer=clean.data();
+    char* outputBuffer=result.data();
+    size_t remainOutput=outputSize;
+    size_t ret=iconv(converter,&inputBuffer,&inputSize,&outputBuffer,&remainOutput);
+    iconv_close(converter);
+    if(ret==(size_t)-1){
+        return clean;
+    }
+    result.resize(outputSize-remainOutput);
+    return result;
 }
+//非阻塞读取标准输入
+
+ void ChatController::privateChat(int fd,const string& username){
+  string friendName;
+  cout<<"好友账号:";
+  cin>>friendName;
+  cin.ignore(numeric_limits<streamsize>::max(),'\n');
+  FriendModel model;
+  if(!model.isFriend(username,friendName)){
+   cout<<COLOR_RED<<"你们不是好友,不可发起私聊"<<COLOR_RESET<<endl;
+   return;
+  }
+  cout<<COLOR_GREEN;
+  cout<<R"(
+ +--------------------------------+
+ |                                |
+ |            私聊模式             |
+ |                                |
+ +--------------------------------+
+ )";
+  cout<<"当前好友:"<<friendName<<endl;
+  cout<<"发送方式:整体发送"<<endl;
+  cout<<"输入 /mode 查看或切换发送方式"<<endl;
+  cout<<"输入 quit 返回"<<endl;
+  cout<<COLOR_RESET;
+  ChatInputMode inputMode;
+  if(!inputMode.active()){
+   cout<<COLOR_RED<<"终端输入模式初始化失败"<<COLOR_RESET<<endl;
+   return;
+  }
+  ChatInputReader inputReader(false);
+  while(true){
+   fd_set readfds;
+   FD_ZERO(&readfds);
+   FD_SET(STDIN_FILENO,&readfds);
+   int ret=select(STDIN_FILENO+1,&readfds,nullptr,nullptr,nullptr);
+   if(ret<0){
+    if(errno==EINTR){
+     continue;
+    }
+    cout<<endl<<COLOR_RED<<"select失败:"<<strerror(errno)<<COLOR_RESET<<endl;
+    break;
+   }
+   if(!FD_ISSET(STDIN_FILENO,&readfds)){
+    continue;
+   }
+   string message;
+   while(inputReader.readMessage(message)){
+    if(message.empty()){
+     continue;
+    }
+    if(message=="quit"){
+     cout<<endl<<"退出聊天"<<endl;
+     goto EXIT_CHAT;
+    }
+    if(handleModeCommand(message,inputReader)){
+     continue;
+    }
+    json js;
+    js["msgid"]=CHAT_MSG;
+    js["from"]=username;
+    js["to"]=friendName;
+    js["message"]=normalizeChatText(message);
+    string data=MessageCodec::encode(js.dump(-1,' ',false,json::error_handler_t::replace));
+    if(!SocketUtil::sendAll(fd,data)){
+     cout<<endl<<COLOR_RED<<"发送失败"<<COLOR_RESET<<endl;
+     goto EXIT_CHAT;
+    }
+   }
+  }
+ EXIT_CHAT:
+  cout<<endl<<COLOR_GREEN<<"已退出与 "<<friendName<<" 的聊天"<<COLOR_RESET<<endl;
+ }
 
 void ChatController::groupChat(int fd,const string& username){
     string groupName;
     cout<<"群名称:";
     cin>>groupName;
     cin.ignore(numeric_limits<streamsize>::max(),'\n');
-
+    GroupModel groupModel;
+    if(!groupModel.groupExist(groupName)){
+        cout<<COLOR_RED<<"发送群消息失败，群不存在"<<COLOR_RESET<<endl;
+        return;
+    }
+    if(!groupModel.isMember(groupName,username)){
+        cout<<COLOR_RED<<"不是群成员，无法发送群消息"<<COLOR_RESET<<endl;
+        return;
+    }
     cout<<COLOR_BLUE;
     cout<<R"(
 +--------------------------------+
@@ -290,70 +211,49 @@ void ChatController::groupChat(int fd,const string& username){
     cout<<"输入 /mode 查看或切换发送方式"<<endl;
     cout<<"输入 quit 返回"<<endl;
     cout<<COLOR_RESET;
-    cout<<COLOR_GREEN;
-    //cout<<"我: ";
-    cout<<COLOR_RESET;
-
     ChatInputMode inputMode;
     ChatInputReader inputReader(false);
     while(true){
         fd_set readfds;
-        FD_ZERO(&readfds);
-        FD_SET(STDIN_FILENO,&readfds);
-
-        int heartbeatFd=Heartbeat::getTimerFd();
-        if(heartbeatFd>=0) FD_SET(heartbeatFd,&readfds);
-
-        int maxfd=STDIN_FILENO;
-        if(heartbeatFd>maxfd) maxfd=heartbeatFd;
-
-        bool pendingReady=inputReader.hasMessage();
-        int selectRet=pendingReady?1:select(maxfd+1,&readfds,nullptr,nullptr,nullptr);
-
+FD_ZERO(&readfds);
+FD_SET(STDIN_FILENO,&readfds);
+int selectRet=select(STDIN_FILENO+1,&readfds,nullptr,nullptr,nullptr);
         if(selectRet<0){
-            if(errno==EINTR) continue;
+            if(errno==EINTR){
+                continue;
+            }
             cerr<<"select failed"<<endl;
             break;
         }
-
-        if(!pendingReady&&heartbeatFd>=0&&FD_ISSET(heartbeatFd,&readfds)){
-            Heartbeat::check(fd);
+if(!FD_ISSET(STDIN_FILENO,&readfds)){
+    continue;
+}
+string message;
+        while(inputReader.readMessage(message)){
+            if(message.empty()){
+                continue;
+            }
+            if(message=="quit"){
+                cout<<"退出聊天"<<endl;
+                goto EXIT_GROUP;
+            }
+            if(handleModeCommand(message,inputReader)){
+                continue;
+            }
+            json js;
+            js["msgid"]=GROUP_CHAT_MSG;
+            js["groupname"]=groupName;
+            js["from"]=username;
+            js["message"]=normalizeChatText(message);
+            string data=MessageCodec::encode(js.dump(-1,' ',false,json::error_handler_t::replace));
+            bool sendRet=SocketUtil::sendAll(fd,data);
+            if(!sendRet){
+                cout<<COLOR_RED<<"发送失败"<<COLOR_RESET<<endl;
+                goto EXIT_GROUP;
+            }
         }
-
-        if(!pendingReady&&!FD_ISSET(STDIN_FILENO,&readfds)) continue;
-
-        string message;
-        if(!inputReader.readMessage(message)) continue;
-
-        if(message=="quit"){
-            cout<<"退出聊天"<<endl;
-            break;
-        }
-
-        if(handleModeCommand(message,inputReader)) continue;
-
-        if(message.empty()){
-            //cout<<COLOR_GREEN<<"我: "<<COLOR_RESET;
-            continue;
-        }
-
-        json js;
-        js["msgid"]=GROUP_CHAT_MSG;
-        js["groupname"]=groupName;
-        js["from"]=username;
-        js["message"]=normalizeChatText(message);
-
-        string data=MessageCodec::encode(js.dump(-1,' ',false,json::error_handler_t::replace));
-        bool sendRet=SocketUtil::sendAll(fd,data);
-
-        if(!sendRet){
-            cout<<"发送失败"<<endl;
-            break;
-        }
-
-        //cout<<COLOR_GREEN<<"我: "<<COLOR_RESET;
     }
-
+EXIT_GROUP:
     cout<<COLOR_BLUE;
     cout<<"已退出群聊 "<<groupName<<endl;
     cout<<COLOR_RESET;

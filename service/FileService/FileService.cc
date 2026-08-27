@@ -509,21 +509,22 @@ void FileService::finishFile(const json& js,TcpConnection* conn){
 
 
         if(targetType=="user"){
-            model.updateFileStatus(fromname,toname,filename,1);
+            model.updateFileStatusById(fileid,1);
         }else if(targetType=="group"){
             model.updateFileReceiver(fileid,receiver,1);
         }
         return;
     }
 
-    if(targetType=="user")
-        model.updateFileStatus(fromname,toname,filename,2);
+    if(targetType=="user"){
+        model.updateFileReceiver(fileid,receiver,2);
+    model.updateFileStatusById(fileid,2);}
     else if(targetType=="group"){
         model.updateFileReceiver(fileid,receiver,2);
 
         //检查所有接收者
         if(model.checkAllReceiverFinish(fileid)){
-            model.updateFileStatus(fromname,js["groupname"],filename,2);
+            model.updateFileStatusById(fileid,2);
             LOG_INFO << "群文件所有接收者完成,fileid=" << fileid;
         }
     }
@@ -546,7 +547,7 @@ json FileService::queryResumeFile(const json& js,TcpConnection* conn){
     json res;
     res["msgid"]=FILE_RESUME_REPLY;
 
-    if(!js.contains("filename")||!js.contains("receiver")){
+    if(!js.contains("fileid")||!js.contains("receiver")){
         LOG_ERROR << "查询断点续传参数缺失";
 
         res["errno"]=1;
@@ -565,19 +566,25 @@ json FileService::queryResumeFile(const json& js,TcpConnection* conn){
         return res;
     }
 
-    string fromname;
-    int fileid=-1;
-    long long filesize=0;
+    int fileid=js["fileid"];
+string fromname;
+long long filesize=0;
+FileModel model;
+if(!model.getUnfinishedFileInfo(fileid,receiver,fromname,filesize)){
+    LOG_WARN<<"文件已经完成或不存在未完成记录,fileid="<<fileid<<",receiver="<<receiver;
+    res["errno"]=2;
+    res["message"]="file already finished or not found";
+    return res;
+}
 
-    FileModel model;
-
-    if(!model.getUnfinishedFileInfo(receiver,filename,fromname,fileid,filesize)){
-        LOG_WARN << "未找到未完成文件,接收者=" << receiver<< ",文件=" << filename;
-
-        res["errno"]=1;
-        res["message"]="file not found";
-        return res;
-    }
+if(filename.empty()){
+    filename=model.getFileName(fromname,receiver);
+}
+if(filename.empty()){
+    res["errno"]=1;
+    res["message"]="filename not found";
+    return res;
+}
 
     long long receivedSize=model.getReceivedSize(fileid,receiver);
 
@@ -623,20 +630,20 @@ json FileService::queryResumeFile(const json& js,TcpConnection* conn){
 }
 void FileService::updateFileOffset(const json& js,TcpConnection* conn){
     if(!js.contains("fileid")||!js.contains("offset")){
-        LOG_ERROR << "更新断点参数缺失";
+        LOG_ERROR<<"更新断点参数缺失";
         return;
     }
     int fileid=js["fileid"];
     long long offset=js["offset"];
     if(!js.contains("size")) return;
     long long size=js["size"];
-    if(fileid<0 || offset<0 || size<0) return;
-    long long filesize=js.contains("filesize") ? js["filesize"].get<long long>() : -1;
+    if(fileid<0||offset<0||size<0) return;
+    long long filesize=js.contains("filesize")?js["filesize"].get<long long>():-1;
     if(filesize<0){
         FileModel model;
         filesize=model.getFileSize(fileid);
     }
-    if(filesize<0 || offset>filesize || size>filesize-offset) return;
+    if(filesize<0||offset>filesize||size>filesize-offset) return;
     long long receivedSize=offset+size;
     string receiver=conn->getUsername();
     TaskThreadPool::instance().enqueue([fileid,receiver,receivedSize,filesize](){
@@ -644,9 +651,8 @@ void FileService::updateFileOffset(const json& js,TcpConnection* conn){
         if(!model.updateReceivedSize(fileid,receiver,receivedSize)) return;
         if(receivedSize>=filesize){
             model.updateFileReceiver(fileid,receiver,2);
-            if(model.checkAllReceiverFinish(fileid)){
-                model.updateFileStatusById(fileid,2);
-            }
+            model.updateFileStatusById(fileid,2);
+            LOG_INFO<<"文件接收完成,更新文件状态,fileid="<<fileid;
         }
     });
 }

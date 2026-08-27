@@ -161,7 +161,7 @@ void TcpConnection::send(const string& msg){
             if(!eventLoop->hasConnection(connectionFd,connection)) return;
             string data=MessageCodec::encode(msg);
             outputQueue_.push_back(std::move(data));
-            LOG_INFO<<"消息加入发送缓冲区 fd="<<fd_<<" size="<<data.size();
+            LOG_INFO<<"消息加入发送缓冲区 fd="<<fd_;
             channel_->enableWriting();
             // handleWrite();
         }
@@ -177,7 +177,7 @@ bool TcpConnection::sendBinary(string msg){
         [this,eventLoop,connectionFd,connection,msg=std::move(msg)](){
             if(!eventLoop->hasConnection(connectionFd,connection)) return;
             fileOutputQueue_.push_back(std::move(msg));
-            LOG_INFO<<"二进制数据加入发送缓冲区 fd="<<fd_<<" size="<<msg.size();
+            LOG_INFO<<"二进制数据加入发送缓冲区 fd="<<fd_;
             channel_->enableWriting();
             //handleWrite();
         }

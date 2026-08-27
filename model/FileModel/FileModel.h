@@ -30,5 +30,5 @@ class FileModel{
       std::vector<std::string> getUnfinishedFiles(const std::string& username);
       std::vector<std::string> getUnfinishedSendFiles(const std::string& username);
     int getUnfinishedFileId(const std::string& fromname,const std::string& toname,const std::string& filename);
-    bool getUnfinishedFileInfo(const std::string& receiver,const std::string& filename,std::string& fromname,int& fileid,long long& filesize);
+    bool getUnfinishedFileInfo(int fileid,const std::string& receiver,std::string& fromname,long long& filesize);
 };

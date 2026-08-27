@@ -74,6 +74,7 @@ void GroupMenu::run(int fd,const string& username){
             cout<<"群名称:";
             cin>>groupName;
             cout<<"邀请人数(至少1人):";
+
             cin>>inviteCount;
             if(cin.fail()||inviteCount<1){
                 cin.clear();

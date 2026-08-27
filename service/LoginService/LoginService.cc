@@ -223,7 +223,7 @@ json LoginService::login(const json& js,TcpConnection* conn){
                 fileInfo["targetType"]="user";
                 conn->send(fileInfo.dump());
             }catch(const exception& e){
-                LOG_ERROR<<"鍙戦€佹柟鏂囦欢鎭㈠閫氱煡澶辫触:"<<e.what();
+                LOG_ERROR<<"ERROR:"<<e.what();
             }
         }
     }else{

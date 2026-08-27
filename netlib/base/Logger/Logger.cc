@@ -21,7 +21,7 @@ void InitLogger(const char* program_name,const char* log_dir){
     google::InitGoogleLogging(program_name);
 
     // 只记录WARNING、ERROR、FATAL
-    FLAGS_minloglevel = 1;
+    FLAGS_minloglevel = 0;
 
     // 不输出到终端
     FLAGS_stderrthreshold = 4;

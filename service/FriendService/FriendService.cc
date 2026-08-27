@@ -19,7 +19,7 @@ json FriendService::addFriend(const json& js){
     if(!js.contains("username")||!js.contains("friendname")){
         LOG_ERROR<<"添加好友请求缺少参数";
         response["errno"]=1;
-        response["message"]="lack params";
+        response["message"]="添加好友请求缺少参数";
         return response;
     }
     string username=js["username"];
@@ -27,14 +27,14 @@ json FriendService::addFriend(const json& js){
     if(username.empty() || friendName.empty()){
         LOG_ERROR<<"用户名或好友名为空";
         response["errno"]=1;
-        response["message"]="username/friendname cannot empty";
+        response["message"]="用户名或好友名为空";
         return response;
     }
     //2. 不能添加自己
     if(username == friendName){
         LOG_ERROR<<"不能添加自己为好友";
         response["errno"]=1;
-        response["message"]="cannot add yourself";
+        response["message"]="不能添加自己为好友";
         return response;
     }
     //检查好友用户是否存在
@@ -42,7 +42,7 @@ json FriendService::addFriend(const json& js){
     if(!userModel.queryUserByUsername(friendName)){
         LOG_ERROR<<"用户不存在:"<<friendName;
         response["errno"]=1;
-        response["message"]="user not exist";
+        response["message"]="用户不存在";
         return response;
     }
     FriendModel model;
@@ -50,7 +50,7 @@ json FriendService::addFriend(const json& js){
     if(model.isFriend(username,friendName)){
         LOG_ERROR<<username<<"和"<<friendName<<"已经是好友";
         response["errno"]=1;
-        response["message"]="already friends";
+        response["message"]="已经是好友";
         return response;
     }
     //5. 建立好友关系
@@ -58,11 +58,11 @@ json FriendService::addFriend(const json& js){
     if(flag){
         LOG_INFO<<username<<"添加好友成功:"<<friendName;
         response["errno"]=0;
-        response["message"]="add friend success";
+        response["message"]="添加好友成功";
     }else{
         LOG_ERROR<<username<<"添加好友失败:"<<friendName;
         response["errno"]=1;
-        response["message"]="add friend fail";
+        response["message"]="添加好友成功";
     }
     return response;
 }
@@ -74,7 +74,7 @@ json FriendService::getFriendList(const json& js){
     if(!js.contains("username")){
         LOG_ERROR<<"获取好友列表缺少用户名";
         res["errno"]=1;
-        res["message"]="lack username";
+        res["message"]="获取好友列表缺少用户名";
         return res;
     }
     string user=js["username"];
@@ -97,7 +97,7 @@ json FriendService::deleteFriend(const json& js){
     if(!js.contains("username")||!js.contains("friendname")){
         LOG_ERROR<<"删除好友请求缺少参数";
         res["errno"]=1;
-        res["message"]="lack username";
+        res["message"]="删除好友请求缺少参数";
         return res;
     }
     string user=js["username"];
@@ -105,14 +105,14 @@ json FriendService::deleteFriend(const json& js){
     if(user==friendName){
         LOG_ERROR<<"不能删除自己";
         res["errno"]=1;
-        res["message"]="cannot delete yourself";
+        res["message"]="不能删除自己";
         return res;
     }
     FriendModel model;
     if(!model.isFriend(user,friendName)){
         LOG_ERROR<<user<<"和"<<friendName<<"不是好友";
         res["errno"]=1;
-        res["message"]="not friends";
+        res["message"]="不是好友";
         return res;
     }
     bool flag=model.removeFriend(user,friendName);
@@ -121,11 +121,11 @@ json FriendService::deleteFriend(const json& js){
         blockModel.removeAllBlock(user,friendName);
         LOG_INFO<<user<<"删除好友成功:"<<friendName;
         res["errno"]=0;
-        res["message"]="delete friend success";
+        res["message"]="删除好友成功";
     }else{
         LOG_ERROR<<user<<"删除好友失败:"<<friendName;
         res["errno"]=1;
-        res["message"]="delete friend fail";
+        res["message"]="删除好友失败";
     }
     return res;
 }

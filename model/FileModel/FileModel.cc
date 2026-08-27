@@ -423,17 +423,17 @@ vector<string> FileModel::getUnfinishedFiles(const string& username)
     return files;
 }
 
-
-
-
-
 vector<string> FileModel::getUnfinishedSendFiles(const string& username){
     vector<string> files;
     MySQLManager mysql;
     if(!mysql.connect()) return files;
     string sql="select f.id,f.filename,f.filepath,f.filesize,f.toname,coalesce(r.received_size,0) "
                "from file_info f left join file_receiver r on f.id=r.fileid "
-               "where f.fromname='"+username+"' and f.targetType='user' and f.status=1";
+               "where f.fromname='"+username+"' "
+               "and f.targetType='user' "
+               "and f.status=1 "
+               "and coalesce(r.received_size,0)<f.filesize"
+               "and coalesce(r.status,0)<>2";
     MYSQL_RES* res=mysql.query(sql);
     if(res==nullptr) return files;
     MYSQL_ROW row;
@@ -448,118 +448,86 @@ vector<string> FileModel::getUnfinishedSendFiles(const string& username){
         files.push_back(js.dump());
     }
     mysql_free_result(res);
+
+    cout<<"========== GET UNFINISHED SEND FILES =========="<<endl;
+cout<<"username="<<username<<endl;
+cout<<"send file count="<<files.size()<<endl;
+for(auto& file:files){
+    cout<<"send unfinished file="<<file<<endl;
+}
+cout<<"==============================================="<<endl;
+
+
     return files;
 }
 
-int FileModel::getUnfinishedFileId(
-    const string& fromname,
-    const string& toname,
-    const string& filename)
-{
+int FileModel::getUnfinishedFileId(const string& fromname,const string& toname,const string& filename){
     MySQLManager mysql;
-
     if(!mysql.connect()){
-        // Logger::instance().error("mysql connect failed");
         return -1;
     }
-
-    string sql =
-        "select id from file_info "
-        "where fromname='"+fromname+"' "
-        "and toname='"+toname+"' "
-        "and filename='"+filename+"' "
-        "and targetType='user' "
-        "and status=1 "
-        "order by id desc limit 1";
-
-    cout << "get unfinished file id SQL:" << sql << endl;
-
-    MYSQL_RES* res = mysql.query(sql);
-
-    if(res == nullptr){
-        // Logger::instance().error(
-        //     "query unfinished file id failed"
-        // );
+    string sql=
+        "select f.id "
+        "from file_info f "
+        "left join file_receiver r on f.id=r.fileid and r.receiver='"+toname+"' "
+        "where f.fromname='"+fromname+"' "
+        "and f.toname='"+toname+"' "
+        "and f.filename='"+filename+"' "
+        "and f.targetType='user' "
+        "and f.status=1 "
+        "and coalesce(r.received_size,0)<f.filesize "
+        "order by f.id desc limit 1";
+    cout<<"get unfinished file id SQL:"<<sql<<endl;
+    MYSQL_RES* res=mysql.query(sql);
+    if(res==nullptr){
         return -1;
     }
-
-    MYSQL_ROW row = mysql_fetch_row(res);
-
+    MYSQL_ROW row=mysql_fetch_row(res);
     if(row){
-        int fileid = atoi(row[0]);
-
+        int fileid=atoi(row[0]);
         mysql_free_result(res);
-
-        cout << "unfinished fileid=" << fileid << endl;
-
+        cout<<"unfinished fileid="<<fileid<<endl;
         return fileid;
     }
-
     mysql_free_result(res);
-
     return -1;
 }
 
-bool FileModel::getUnfinishedFileInfo(
-    const string& receiver,
-    const string& filename,
-    string& fromname,
-    int& fileid,
-    long long& filesize)
-{
+bool FileModel::getUnfinishedFileInfo(int fileid,const string& receiver,string& fromname,long long& filesize){
     MySQLManager mysql;
     if(!mysql.connect()){
-        // Logger::instance().error("mysql connect failed");
         return false;
     }
-
-    MYSQL* conn = mysql.getConnection();
-    if(conn == nullptr){
-        // Logger::instance().error("mysql connection is null");
+    MYSQL* conn=mysql.getConnection();
+    if(conn==nullptr){
         return false;
     }
-
-    auto escape = [conn](const string& input){
-        string output;
-        output.resize(input.size() * 2 + 1);
-        unsigned long len = mysql_real_escape_string(
-            conn,
-            &output[0],
-            input.c_str(),
-            input.size()
-        );
-        output.resize(len);
-        return output;
-    };
-
-    string safeReceiver = escape(receiver);
-    string safeFilename = escape(filename);
-
-    string sql =
-        "select id, fromname, filesize "
-        "from file_info "
-        "where toname='"+safeReceiver+"' "
-        "and filename='"+safeFilename+"' "
-        "and targetType='user' "
-        "and status=1 "
-        "order by id desc limit 1";
-
-    MYSQL_RES* res = mysql.query(sql);
-    if(res == nullptr){
-        // Logger::instance().error("query unfinished file info failed");
+    string safeReceiver;
+    safeReceiver.resize(receiver.size()*2+1);
+    unsigned long len=mysql_real_escape_string(conn,&safeReceiver[0],receiver.c_str(),receiver.size());
+    safeReceiver.resize(len);
+    string sql=
+        "select f.fromname,f.filesize "
+        "from file_info f "
+        "left join file_receiver r on f.id=r.fileid and r.receiver='"+safeReceiver+"' "
+        "where f.id="+to_string(fileid)+" "
+        "and f.toname='"+safeReceiver+"' "
+        "and f.targetType='user' "
+        "and f.status=1 "
+        "and coalesce(r.received_size,0)<f.filesize "
+        "and coalesce(r.status,0)<>2 "
+        "limit 1";
+    MYSQL_RES* res=mysql.query(sql);
+    if(res==nullptr){
         return false;
     }
-
-    MYSQL_ROW row = mysql_fetch_row(res);
-    if(row == nullptr){
+    MYSQL_ROW row=mysql_fetch_row(res);
+    if(row==nullptr){
         mysql_free_result(res);
         return false;
     }
-
-    fileid = atoi(row[0]);
-    fromname = row[1];
-    filesize = atoll(row[2]);
-
+    fromname=row[0]?row[0]:"";
+    filesize=atoll(row[1]);
     mysql_free_result(res);
     return true;
 }

@@ -13,7 +13,7 @@ json FriendBlockService::addBlock(const json& js){
     if(!js.contains("username")||!js.contains("blockname")){
         LOG_ERROR<<"添加屏蔽缺少参数";
         response["errno"]=1;
-        response["message"]="缺少成分";
+        response["message"]="添加屏蔽缺少参数";
         return response;
     }
     string username=js["username"];

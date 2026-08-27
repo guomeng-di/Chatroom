@@ -1,14 +1,11 @@
-#ifndef MAIN_MENU_H
-#define MAIN_MENU_H
-
+#pragma once
 #include <string>
-
+#include <atomic>
+extern std::atomic<bool> connectionAlive;
 class MainMenu{
 
 public:
-
+    
     static void run(int fd);
 
 };
-
-#endif

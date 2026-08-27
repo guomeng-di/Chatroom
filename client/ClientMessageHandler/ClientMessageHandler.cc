@@ -590,6 +590,11 @@ else if(msgid==FILE_RESUME_NOTIFY){
             string receiver=js["receiver"];
             long long offset=js["received_size"];
 
+            long long filesize=js.value("filesize",0LL);
+            if(filesize>0&&offset>=filesize){
+                cout<<"文件已经完成,忽略旧的恢复通知,fileid="<<fileid<<endl;
+                return;
+            }
             cout << "fileid=" << fileid << endl;
             cout << "filename=" << filename << endl;
             cout << "receiver=" << receiver << endl;

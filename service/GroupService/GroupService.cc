@@ -311,11 +311,27 @@ json GroupService::getGroupMembers(const json& js){
     }
     auto members=model.getMembers(groupName);
     for(auto& user:members){
-        response["members"].push_back(user);
+        string res1;
+        //在线状态
+        if(OnlineUserManager::instance().isOnline(user)){
+            res1+="在线  ";
+        }else{
+            res1+="离线  ";
+        }
+        if(model.isOwner(groupName,user)){
+            res1+="群主   "+user;
+            response["members"].push_back(res1);
+    }else if(model.isAdmin(groupName,user)){
+            res1+="管理员  "+user;
+            response["members"].push_back(res1);
+    }else{
+            res1+="普通成员 "+user;
+            response["members"].push_back(res1);
+    }
     }
     LOG_INFO<<"查询群成员成功，群名:"<<groupName;
     response["errno"]=0;
-    response["message"]="get members success";
+    response["message"]="查询群成员成功";
     return response;
 }
 json GroupService::getGroupList(const json& js){
@@ -325,7 +341,7 @@ json GroupService::getGroupList(const json& js){
     if(!js.contains("username")){
         LOG_ERROR<<"查询群列表失败，缺少用户名";
         response["errno"]=1;
-        response["message"]="lack username";
+        response["message"]="查询群列表失败，缺少用户名";
         return response;
     }
     string username=js["username"];
@@ -336,6 +352,6 @@ json GroupService::getGroupList(const json& js){
     }
     LOG_INFO<<"查询群列表成功，用户:"<<username;
     response["errno"]=0;
-    response["message"]="get groups success";
+    response["message"]="查询群列表成功";
     return response;
 }
