@@ -63,12 +63,30 @@ json GroupManageService::kickMember(const json& js){
        res["message"]="踢出群成员失败，不能踢出群主";
        return res;
 }   
-//    //群主踢管理员
-//    if(is_owner&&is_admin1){
-//        res["errno"]=0;
-//        res["message"]="您是群主,已踢一位管理员";
-//        return res;
-//    }
+   //群主踢管理员
+   if(is_owner&&is_admin1){
+    bool adminRemoved=groupModel.removeAdmin(groupName,username);
+    bool memberRemoved=groupModel.removeMember(groupName,username);
+    LOG_INFO<<"kick debug: operator="<<operatorName
+        <<" target="<<username
+        <<" is_owner="<<is_owner
+        <<" is_admin="<<is_admin
+        <<" target_owner="<<is_owner1
+        <<" target_admin="<<is_admin1;
+    if(memberRemoved&&adminRemoved){
+        LOG_INFO<<"群主踢出管理员成功，群:"<<groupName<<" 管理员:"<<username;
+        res["errno"]=0;
+        res["message"]="群主已成功踢出管理员";
+        return res;
+    }
+    else{
+        LOG_ERROR<<"群主踢出管理员失败，群:"<<groupName<<" 管理员:"<<username;
+        res["errno"]=1;
+        res["message"]="踢出管理员失败";
+    }
+
+    return res;
+}
    //管理员不能互踢
    if(is_admin&&is_admin1){
        LOG_ERROR<<"踢出群成员失败，管理员不能互相踢出";

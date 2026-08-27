@@ -231,7 +231,7 @@ json GroupService::leaveGroup(const json& js){
     if(!model.isMember(groupName,username)){
         LOG_ERROR<<"退出群组失败，用户不是群成员:"<<username;
         response["errno"]=1;
-        response["message"]="not group member";
+        response["message"]="退出群组失败，用户不是群成员";
         return response;
     }
     if(model.isOwner(groupName,username)){
@@ -242,13 +242,20 @@ json GroupService::leaveGroup(const json& js){
     }
     string owner=model.getOwner(groupName);
     unordered_set<string> admins=model.getAdmins(groupName);
-    bool flag=model.leaveGroup(groupName,username);
+
+    if(model.isAdmin(groupName,username)) model.deleteAdmin(groupName,username);
+    bool flag=model.leaveGroup(groupName,username);//离开成功是1
     if(!flag){
         LOG_ERROR<<"退出群组失败:"<<username<<" 群名:"<<groupName;
         response["errno"]=1;
-        response["message"]="leave group fail";
+        response["message"]="退出群组失败";
         return response;
     }
+    if(model.isAdmin(groupName,username)){
+    if(!model.deleteAdmin(groupName,username)){
+        LOG_ERROR<<"删除管理员身份失败:"<<username<<" 群名:"<<groupName;
+    }
+}
     LOG_INFO<<"用户退出群组成功:"<<username<<" 群名:"<<groupName;
     json notify;
     notify["msgid"]=GROUP_LEAVE_NOTIFY;

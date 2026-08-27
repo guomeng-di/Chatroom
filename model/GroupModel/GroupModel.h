@@ -30,7 +30,7 @@
        bool deleteGroup(const std::string& groupName);
        //添加管理员
        bool addAdmin(const std::string& groupName,const std::string& username);
-       //删除管理员
+       //删除管理员(身份)
        bool removeAdmin(const std::string& groupName,const std::string& username);
        //得知群主是谁(有好友申请了,需要通知)
        std::string getOwner(const std::string& groupname);
@@ -40,6 +40,8 @@
        bool removeAllGroups(const std::string& username);
        //chat_group:删除用户创建的群
        bool removeOwnerGroups(const std::string& username);
-       //group_admin:删除管理员身份
+       //group_admin:删除管理员身份(所有群)
        bool removeAdmin_(const std::string& username);
+       //踢出去
+       bool deleteAdmin(const std::string& groupName,const std::string& username);
  };
