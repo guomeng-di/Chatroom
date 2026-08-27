@@ -117,11 +117,16 @@ string normalizeChatText(const string& text){
   cout<<"好友账号:";
   cin>>friendName;
   cin.ignore(numeric_limits<streamsize>::max(),'\n');
-  FriendModel model;
-  if(!model.isFriend(username,friendName)){
-   cout<<COLOR_RED<<"你们不是好友,不可发起私聊"<<COLOR_RESET<<endl;
-   return;
-  }
+
+    json js;
+    js["msgid"]=CHAT_MSG;
+    js["from"]=username;
+    js["to"]=friendName;
+    js["message"]="请求聊天";
+    string data=MessageCodec::encode(js);
+    SocketUtil::sendAll(fd,data);
+
+
   cout<<COLOR_GREEN;
   cout<<R"(
  +--------------------------------+
@@ -189,15 +194,25 @@ void ChatController::groupChat(int fd,const string& username){
     cout<<"群名称:";
     cin>>groupName;
     cin.ignore(numeric_limits<streamsize>::max(),'\n');
-    GroupModel groupModel;
-    if(!groupModel.groupExist(groupName)){
-        cout<<COLOR_RED<<"发送群消息失败，群不存在"<<COLOR_RESET<<endl;
-        return;
-    }
-    if(!groupModel.isMember(groupName,username)){
-        cout<<COLOR_RED<<"不是群成员，无法发送群消息"<<COLOR_RESET<<endl;
-        return;
-    }
+    // GroupModel groupModel;
+    // if(!groupModel.groupExist(groupName)){
+    //     cout<<COLOR_RED<<"发送群消息失败，群不存在"<<COLOR_RESET<<endl;
+    //     return;
+    // }
+    // if(!groupModel.isMember(groupName,username)){
+    //     cout<<COLOR_RED<<"不是群成员，无法发送群消息"<<COLOR_RESET<<endl;
+    //     return;
+    // }
+
+    json js;
+            js["msgid"]=GROUP_CHAT_MSG;
+            js["groupname"]=groupName;
+            js["from"]=username;
+            js["message"]="请求聊天";
+            string data=MessageCodec::encode(js.dump(-1,' ',false,json::error_handler_t::replace));
+            bool sendRet=SocketUtil::sendAll(fd,data);
+
+
     cout<<COLOR_BLUE;
     cout<<R"(
 +--------------------------------+
