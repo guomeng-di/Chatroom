@@ -271,12 +271,17 @@ bool GroupModel::addMember(const string& groupName,const string& username){
      mysql_free_result(result);
      return true;
  }
- bool GroupModel::deleteAdmin(const string& groupname,const string& username){
-     MySQLManager mysql;
-     if(!mysql.connect()) return false;
-     string sql ="delete from group_admin where groupname='"+groupname+"' and username="+username+"'";
-     if(mysql.execute(sql)){
-         return true;
-     }
-     return false;
- }
+bool GroupModel::deleteAdmin(const string& groupname,const string& username){
+
+    MySQLManager mysql;
+
+    if(!mysql.connect()) return false;
+
+    string sql="delete from group_admin where groupname='"+groupname+"' and username='"+username+"'";
+
+    if(mysql.execute(sql)){
+        return true;
+    }
+
+    return false;
+}
