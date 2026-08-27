@@ -4,7 +4,7 @@
 #include "../../model/FriendRequestModel/FriendRequestModel.h"
 #include "../../manager/OnlineUserManager/OnlineUserManager.h"
 #include "../../manager/RedisManager/RedisManager.h"
-#include "../../manager/FriendManager/FriendManager.h"
+// #include "../../manager/FriendManager/FriendManager.h"
 #include "../FriendStatusService/FriendStatusService.h"
 #include "../../netlib/net/TcpConnection/TcpConnection.h"
 #include "../../protocol/MsgId.h"
@@ -83,10 +83,6 @@ json LoginService::login(const json& js,TcpConnection* conn){
         return response;
     }
 
-        //存好友表
-        FriendManager::instance().loadFriendList(username);
-
-        FriendManager::instance().loadBlockList(username);
 
 //LOG_INFO<<"加载屏蔽列表成功 用户:"<<username;
         conn->setUsername(username);

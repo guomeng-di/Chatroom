@@ -1,12 +1,11 @@
 #include "ChatService.h"
 #include "../../manager/OnlineUserManager/OnlineUserManager.h" 
 #include "../../manager/RedisManager/RedisManager.h" 
-#include "../../manager/FriendManager/FriendManager.h" 
 
 #include "../../model/PrivateMessageModel/PrivateMessageModel.h"
 #include "../../netlib/net/TcpConnection/TcpConnection.h"
-// #include "../../model/FriendModel/FriendModel.h"
-// #include "../../model/FriendBlockModel/FriendBlockModel.h"
+#include "../../model/FriendModel/FriendModel.h"
+#include "../../model/FriendBlockModel/FriendBlockModel.h"
 #include "../../protocol/MsgId.h"
 #include <iostream>
 #include "../../netlib/base/Logger/Logger.h"
@@ -42,7 +41,8 @@ json ChatService::chat(const json& js,TcpConnection* conn){
         return response;
 }
     //判断是否好友
-if(!FriendManager::instance().isFriend(from,to)){
+    FriendModel model;
+if(!model.isFriend(from,to)){
 
         LOG_ERROR<<"双方不是好友 from="
                  <<from
@@ -57,7 +57,8 @@ if(!FriendManager::instance().isFriend(from,to)){
         return response;
     }
     //判断屏蔽了没
-    if(FriendManager::instance().isBlocked(to,from)){
+    FriendBlockModel model1;
+    if(model1.isBlocked(from,to)){
     response["msgid"]=CHAT_ACK;
     response["errno"]=1;
     response["message"]="you are blocked";
