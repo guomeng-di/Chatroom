@@ -3,6 +3,7 @@
 #include "../LogoutService/LogoutService.h"
 #include "../RegisterService/RegisterService.h"
 #include "../ChatService/ChatService.h"
+// #include "../ChatRequestService/ChatRequestService.h"
 #include "../GroupChatService/GroupChatService.h"
 #include "../GroupService/GroupService.h"
 #include "../GroupManageService/GroupManageService.h"
@@ -53,7 +54,11 @@ void MessageDispatcher::dispatch(const json& js,TcpConnection* conn){
             conn->send(response.dump());
             break;
         }
-
+// case CHAT_REQUEST:{
+//     json response=ChatRequestService::chatRequest(js,conn);
+//     conn->send(response.dump());
+//     break;
+// }
 
 //4群聊
         case GROUP_CHAT_MSG:{

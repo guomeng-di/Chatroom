@@ -118,15 +118,6 @@ string normalizeChatText(const string& text){
   cin>>friendName;
   cin.ignore(numeric_limits<streamsize>::max(),'\n');
 
-    json js;
-    js["msgid"]=CHAT_MSG;
-    js["from"]=username;
-    js["to"]=friendName;
-    js["message"]="请求聊天";
-    string data=MessageCodec::encode(js);
-    SocketUtil::sendAll(fd,data);
-
-
   cout<<COLOR_GREEN;
   cout<<R"(
  +--------------------------------+
